@@ -809,16 +809,16 @@ document.addEventListener('keydown', (e) => {
 
 /* ---------- click delegation ---------- */
 document.addEventListener('click', async (e) => {
-  const t = e.target;
-  const twig = t.closest('.twig-hit, mark.twig-mark, [data-open]');
+  const el = e.target;
+  const twig = el.closest('.twig-hit, mark.twig-mark, [data-open]');
   if (twig) { openBranch(twig.dataset.b || twig.dataset.open); return; }
-  const act = t.closest('[data-act]');
+  const act = el.closest('[data-act]');
   if (act) { startDraft(Number(act.dataset.act), ''); return; }
-  const go = t.closest('[data-goto]');
+  const go = el.closest('[data-goto]');
   if (go) { gotoMsg(Number(go.dataset.goto)); return; }
-  if (t.closest('#backList')) { state.open = null; state.draft = null; renderThread(true); renderPanel(); return; }
-  if (t.closest('#closePanel')) { $('#panel').classList.add('closed'); return; }
-  if (t.closest('#delBranch')) {
+  if (el.closest('#backList')) { state.open = null; state.draft = null; renderThread(true); renderPanel(); return; }
+  if (el.closest('#closePanel')) { $('#panel').classList.add('closed'); return; }
+  if (el.closest('#delBranch')) {
     const b = state.branches.find((x) => x.id === state.open);
     if (!b || !confirm(t('confirmDelete'))) return;
     await api(`/api/branch/${b.id}?session=${encodeURIComponent(state.session)}`, { method: 'DELETE' });
@@ -828,15 +828,15 @@ document.addEventListener('click', async (e) => {
     state.branches = state.branches.filter((x) => !gone.has(x.id)); state.open = null;
     renderThread(true); renderPanel(); return;
   }
-  if (t.closest('#exportBtn')) {
+  if (el.closest('#exportBtn')) {
     const b = state.branches.find((x) => x.id === state.open);
     if (b) exportBranch(b);
     return;
   }
-  if (t.closest('#summaryBtn')) {
+  if (el.closest('#summaryBtn')) {
     const b = state.branches.find((x) => x.id === state.open);
     if (!b) return;
-    const btn = t.closest('#summaryBtn'); btn.disabled = true;
+    const btn = el.closest('#summaryBtn'); btn.disabled = true;
     toast(t('summarizing'));
     try {
       const r = await (await api(`/api/branch/${b.id}/summary`, { method: 'POST', body: JSON.stringify({ session: state.session }) })).json();
@@ -845,7 +845,7 @@ document.addEventListener('click', async (e) => {
     finally { btn.disabled = false; }
     return;
   }
-  if (t.closest('#toTerminal')) {
+  if (el.closest('#toTerminal')) {
     const b = state.branches.find((x) => x.id === state.open);
     if (!b) return;
     try {
