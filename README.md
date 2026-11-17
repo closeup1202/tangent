@@ -1,77 +1,101 @@
-# cq-web
+# Tangent
 
-Claude Code 대화를 브라우저에 띄워 두고, 문장을 골라 **가지 대화**를 치는 도구입니다.
+**Go off on a tangent without derailing your Claude Code session.**
 
-Claude Code 대화는 한 줄로만 이어집니다. 중간에 "이 부분은 무슨 뜻이지?" 같은 곁가지 질문을 하면 본 흐름에 섞입니다. cq-web을 쓰면 원래 대화는 그대로 두고, 고른 문장만 맥락으로 가진 가지 대화를 옆 패널에서 이어 갈 수 있습니다.
+English | [한국어](README.ko.md)
 
-## 기능
+<!-- TODO: demo GIF — select a sentence → "Branch" → answer streams in the side panel -->
+<!-- ![demo](docs/demo.gif) -->
 
-- **문장으로 가지 치기:** 대화에서 문장을 드래그하면 **가지 치기** 버튼이 뜹니다. 메시지 전체로 가지를 치려면 **가지** 버튼을 누릅니다.
-- **가지 대화:** 고른 문장과 그 메시지의 질문·답변만 맥락으로 들어갑니다. 답이 실시간으로 나오고, 이어서 물어도 앞 대화를 기억합니다.
-- **가지 표시:** 대화 옆 줄기에서 가지가 뻗어 나가고, 가지를 친 문장에는 하이라이트가 남습니다. 가지 목록은 저장되어 다음에 열어도 남아 있습니다.
-- **터미널에서 이어가기:** 가지 대화는 도구 없이 답합니다. 파일 읽기나 명령 실행이 필요하면 이 버튼으로 같은 가지를 일반 Claude Code 터미널에서 이어 갑니다(`claude -r <가지 세션>`).
-- **기타:** 대화 검색, 세션 바꾸기, 밝은/어두운 테마를 지원합니다.
+A Claude Code conversation is a single line. When you want to ask *"wait, what does this part mean?"* halfway through a task, you have two options: ask it in the main thread and clutter the context, or don't ask at all.
 
-## 요구 사항
+Tangent opens your current session in the browser. Highlight any sentence, click **Branch**, and ask your side question in a panel next to it. The branch only knows the part you picked. Your main session stays untouched.
 
-- Node.js 18 이상
-- 로그인된 Claude Code CLI(`claude` 명령)
-- Windows 또는 macOS. Linux는 브라우저 열기는 되지만, 터미널 열기가 안 되면 명령을 복사해 줍니다.
+## Features
 
-## 설치
+- **Branch from a sentence.** Select text in any message and click **Branch**, or branch from a whole message.
+- **Focused context.** A branch sees only the selected text and the question/answer pair it came from, not your whole session.
+- **Streaming answers.** Follow-up questions in a branch remember the earlier ones.
+- **Branches are visible.** Branches grow as twigs off the conversation's trunk, and the sentences you branched from stay highlighted. Branches are saved, so they are still there next time.
+- **Continue in the terminal.** Branch chats run without tools. When you need file access or shell commands, one click reopens the same branch as a regular Claude Code session (`claude -r <branch>`).
+- **Also included:** search, a session switcher, and light and dark themes.
+
+## How it differs from built-in commands
+
+| | `/btw` | `/branch` | Tangent |
+|---|---|---|---|
+| Anchored to a specific sentence | – | – | ✓ |
+| Answer is kept | – | ✓ | ✓ |
+| Context | whole session | whole session (copied) | selected part only |
+| Several side threads, visible at a glance | – | – | ✓ |
+| Tools | none | full | none (one click to a full terminal session) |
+
+## Requirements
+
+- Node.js 18 or later
+- The [Claude Code](https://code.claude.com/docs) CLI, logged in (`claude` on your `PATH`)
+- Windows or macOS. Linux works for the browser part; if no terminal can be opened, the command is copied for you.
+
+## Install
 
 ```bash
-git clone <이 레포> cq-web
-cd cq-web
+git clone https://github.com/closeup1202/tangent.git
+cd tangent
 node install.mjs
 ```
 
-설치가 끝나면 Claude Code를 다시 시작합니다.
+The installer:
 
-설치 스크립트가 하는 일은 두 가지입니다.
+- writes the `/tg` slash command to `~/.claude/commands/tg.md`, pre-allowed so it runs without a permission prompt;
+- writes a small launcher to `~/.claude/tangent/launch.mjs` that points to this repo.
 
-- `~/.claude/commands/cq.md`에 `/cq` 명령을 만듭니다. 이 실행 하나만 승인 없이 돌도록 허용합니다.
-- `~/.claude/cq-web/launch.mjs`에 실행 진입점을 만듭니다. 이 파일이 레포의 `server.mjs`를 부릅니다.
+Restart Claude Code after installing. If you move the repo, run `node install.mjs` again.
 
-레포를 다른 곳으로 옮겼다면 `node install.mjs`를 다시 실행하세요.
+## Usage
 
-## 사용
-
-Claude Code 대화창에서 다음을 입력합니다.
+In any Claude Code session, type:
 
 ```
-/cq
+/tg
 ```
 
-브라우저에 지금 대화가 뜹니다. 원래 대화에 새 메시지가 생기면 화면의 **다시 읽기** 버튼을 누르세요.
+Your conversation opens in the browser. Highlight text, click **Branch**, and ask. If the main session has moved on, click **Reload** to see the new messages.
 
-## 구조
+## How it works
 
-| 파일 | 역할 |
+| File | Role |
 |---|---|
-| `server.mjs` | 로컬 서버. 세션 기록을 읽고, `claude -p`로 가지 대화를 실행합니다. 외부 패키지를 쓰지 않습니다. |
-| `page.html` | 브라우저 화면(마크다운 렌더러 포함, 외부 CDN 없음) |
-| `install.mjs` | `/cq` 명령 설치·제거 |
+| `server.mjs` | Local server. Reads the session log and runs branch chats through `claude -p`. No dependencies. |
+| `page.html` | The UI. Includes a small built-in Markdown renderer; no CDN. |
+| `install.mjs` | Installs and uninstalls the slash command. |
 
-- **원래 대화:** `~/.claude/projects/<작업 폴더>/<세션>.jsonl`을 읽기만 하고 고치지 않습니다.
-- **가지 대화:** `claude -p --tools "" --strict-mcp-config`로 실행합니다. 첫 질문에는 `--append-system-prompt-file`로 맥락을 넣고, 이어지는 질문은 `--resume`으로 보냅니다. 가지 대화도 Claude Code 세션으로 저장되므로 구독 사용량을 씁니다.
-- **가지 기록:** `~/.claude/cq-web/data/`에 저장합니다. 대화 내용이 들어 있으니 레포에 넣지 않습니다. 저장 위치는 환경변수 `CQ_WEB_DATA`로 바꿀 수 있습니다.
+- **Your session is read-only.** Tangent reads `~/.claude/projects/<project>/<session>.jsonl` and never writes to it.
+- **Branches are ordinary Claude Code sessions.** They run with `claude -p --tools "" --strict-mcp-config`. The first message gets the picked context through `--append-system-prompt-file`, and follow-ups use `--resume`. Branches count toward your normal Claude usage.
+- **Branch data lives outside the repo,** in `~/.claude/tangent/data/`. It contains conversation text. Override the location with `TANGENT_DATA`.
 
-## 보안
+## Security
 
-- 서버는 `127.0.0.1`에만 열리고, 실행할 때마다 임의 토큰을 씁니다. Host와 Origin 헤더도 검사합니다.
-- 10분 동안 요청이 없으면 서버가 스스로 꺼집니다.
-- 가지 대화에서는 도구를 쓸 수 없습니다. 승인 창을 띄울 곳이 없기 때문입니다.
+- The server listens only on `127.0.0.1`. It uses a random token per launch and checks the `Host` and `Origin` headers.
+- It shuts itself down after 10 minutes without requests.
+- Branch chats have no tools, because there is nowhere to show a permission prompt.
 
-## 한계
+## Limitations
 
-- **Claude Code 내부 세션 파일 형식에 기댑니다.** 형식이 바뀌면 메시지를 못 읽을 수 있습니다. 형식을 읽는 코드는 `server.mjs`의 "세션 기록 읽기" 부분에 모아 두었습니다.
-- **macOS는 아직 실제로 돌려 보지 않았습니다.** 코드상으로는 지원하지만 확인이 필요합니다. 브라우저는 `open`으로 열고, 터미널은 Terminal.app을 `osascript`로 엽니다.
-- Windows에서 `claude`가 npm으로 설치돼 있으면(`claude.cmd`) 셸을 거쳐 실행합니다. 경로가 특이하면 환경변수 `CQ_CLAUDE_BIN`에 실행 파일 경로를 지정하세요.
+- **Tangent depends on Claude Code's internal session format.** A Claude Code update could break parsing. All format-specific code is in the "세션 기록 읽기" (session reading) section of `server.mjs`.
+- **macOS support is new.** The browser opens with `open`, and the terminal is Terminal.app through `osascript`. Please open an issue if something misbehaves.
+- **If `claude` was installed through npm on Windows** (`claude.cmd`), it runs through the shell. Set `TANGENT_CLAUDE_BIN` if your binary is somewhere unusual.
 
-## 제거
+## Uninstall
 
 ```bash
-node install.mjs --uninstall          # /cq 명령과 진입점 제거 (가지 기록은 남김)
-node install.mjs --uninstall --purge  # 가지 기록까지 제거
+node install.mjs --uninstall          # remove the command and launcher, keep branch data
+node install.mjs --uninstall --purge  # also delete branch data
 ```
+
+## License
+
+MIT
+
+---
+
+Tangent is an independent project and is not affiliated with or endorsed by Anthropic.

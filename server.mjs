@@ -1,4 +1,4 @@
-// cq-web: Claude Code 대화를 브라우저에 띄우고, 문장을 골라 가지 대화를 이어 가는 로컬 서버.
+// Tangent: Claude Code 대화를 브라우저에 띄우고, 문장을 골라 가지 대화를 이어 가는 로컬 서버.
 //
 //   node server.mjs --launch [--cwd <dir>] [--session <id>] [--no-open]   서버를 백그라운드로 띄우고 브라우저를 연다
 //   node server.mjs --serve  ...                                          서버 본체 (--launch 가 부른다)
@@ -20,7 +20,7 @@ const IS_MAC = process.platform === 'darwin';
 const SELF = fileURLToPath(import.meta.url);
 const ROOT = path.dirname(SELF);
 const HOME = os.homedir();
-const DATA = process.env.CQ_WEB_DATA || path.join(HOME, '.claude', 'cq-web', 'data');
+const DATA = process.env.TANGENT_DATA || path.join(HOME, '.claude', 'tangent', 'data');
 const PROJ = path.join(HOME, '.claude', 'projects');
 const IDLE_MS = 10 * 60 * 1000;
 
@@ -45,11 +45,11 @@ if (argv.includes('--launch')) {
     if (fs.existsSync(status)) {
       const s = JSON.parse(fs.readFileSync(status, 'utf8'));
       fs.rmSync(status, { force: true });
-      if (s.error) { console.log('cq-web 시작 실패: ' + s.error); process.exit(1); }
+      if (s.error) { console.log('Tangent 시작 실패: ' + s.error); process.exit(1); }
       console.log('브라우저에 가지 화면을 열었습니다: ' + s.url);
       process.exit(0);
     }
-    if (Date.now() > until) { console.log('cq-web 서버가 8초 안에 뜨지 않았습니다.'); process.exit(1); }
+    if (Date.now() > until) { console.log('Tangent 서버가 8초 안에 뜨지 않았습니다.'); process.exit(1); }
     setTimeout(wait, 150);
   };
   wait();
@@ -97,7 +97,7 @@ function openTerminal(sessionId) {
 
 // claude 실행 파일 찾기. Windows 에서 npm 으로 설치하면 claude.cmd 라 셸을 거쳐야 한다.
 function findClaude() {
-  if (process.env.CQ_CLAUDE_BIN) return process.env.CQ_CLAUDE_BIN;
+  if (process.env.TANGENT_CLAUDE_BIN) return process.env.TANGENT_CLAUDE_BIN;
   if (!IS_WIN) return 'claude';
   for (const dir of (process.env.PATH || '').split(path.delimiter)) {
     for (const ext of ['.exe', '.cmd']) {
@@ -250,7 +250,7 @@ function runClaude({ prompt, resumeId, ctx, name }, onDelta) {
 function buildContext(sid, items, b) {
   const { q, a, focus } = pairFor(items, b.anchor);
   const L = [];
-  L.push('# 가지 질문 맥락 (cq-web)', '');
+  L.push('# 가지 질문 맥락 (Tangent)', '');
   L.push(`아래는 사용자가 다른 Claude Code 대화(세션 ${sid})에서 고른 부분이다. 사용자가 고른 것은 '${focus}' 이다.`);
   L.push('이 대화의 나머지 내용은 여기에 없다. 이어지는 질문은 이 부분에 대한 가지 질문이므로 이 부분을 기준으로 답한다.');
   L.push('앞 맥락이 꼭 필요한데 여기에 없으면 추측하지 말고 사용자에게 물어본다.');
@@ -285,7 +285,7 @@ function serve() {
         return res.end(html);
       }
       if (!u.pathname.startsWith('/api/')) return send(res, 404, 'not found');
-      if (req.headers['x-cq-token'] !== TOKEN) return send(res, 403, 'token');
+      if (req.headers['x-tangent-token'] !== TOKEN) return send(res, 403, 'token');
 
       if (req.method === 'POST' && u.pathname === '/api/ping') return json(res, { ok: true });
       if (req.method === 'GET' && u.pathname === '/api/sessions') return json(res, { sessions: listSessions() });
