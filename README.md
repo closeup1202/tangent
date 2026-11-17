@@ -21,7 +21,7 @@ Tangent opens your current session in the browser. Highlight any sentence, click
 - **Bring it back.** When a branch reaches a conclusion, **Bring back** writes a short note (topic + bullet points) that you can edit, copy and paste into the main session. The summary runs on a throwaway copy, so the branch history stays clean.
 - **Live.** New messages in the main session appear automatically. No reload needed, and your scroll position and text selection are kept.
 - **Branches of branches.** Select text inside a branch to branch again. Branches form a tree in the list, and the text a nested branch grew from stays highlighted.
-- **Pick a model per branch.** Default, Haiku (fast and cheap for quick questions), Sonnet or Opus.
+- **Model and effort per branch, like `/model`.** By default a branch uses the same model and effort as your main conversation (read from its log, refreshed at every question). Or pick any model your Claude Code offers (Fable, Opus, Sonnet, Haiku, 1M-context variants) and set effort with ◀ ▶ (↑↓ / ←→ on the keyboard).
 - **Name your branches.** Click a branch title to rename it (empty goes back to the first question). Names show in the list and are searchable.
 - **Export.** Save any branch as a Markdown file.
 - **Search branches too.** The search box filters the main thread and lists the branches whose content matches.

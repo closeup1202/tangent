@@ -199,6 +199,25 @@ textarea { flex: 1; border: 0; outline: none; resize: none; background: transpar
 .link-btn:hover { color: var(--accent-strong); background: var(--sunken); }
 .link-btn svg { width: 14px; height: 14px; }
 
+.mbtn { height: 24px; padding: 0 8px; font-size: 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); display: inline-flex; align-items: center; gap: 5px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mbtn:hover { border-color: var(--twig-soft); color: var(--text); }
+.mbtn svg { width: 12px; height: 12px; flex: none; }
+.composer { position: relative; }
+.mpop { position: absolute; left: 12px; bottom: calc(100% - 36px); width: min(380px, calc(100% - 24px)); z-index: 25; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; }
+.mpop h4 { margin: 4px 8px 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.mpop .opt { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.mpop .opt .ck { color: var(--accent); font-weight: 700; }
+.mpop .opt .sub { color: var(--faint); font-size: 11.5px; }
+.mpop .opt.hl { background: var(--sunken); }
+.mpop .eff { border-top: 1px solid var(--line); margin-top: 6px; padding: 9px 8px 5px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.mpop .eff .lbl { color: var(--muted); }
+.mpop .eff button { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); padding: 0; line-height: 1; }
+.mpop .eff button:disabled { opacity: .35; }
+.mpop .dots { display: inline-flex; gap: 3px; }
+.mpop .dots i { width: 14px; height: 6px; border-radius: 3px; background: var(--line); }
+.mpop .dots i.on { background: var(--twig); }
+.mpop .eff .val { font-weight: 600; min-width: 64px; }
+.mpop .keys { font-size: 11px; color: var(--faint); padding: 2px 8px 4px; }
 select.mini { height: 24px; padding: 0 6px; font-size: 12px; border-radius: 6px; max-width: 120px; color: var(--muted); background: var(--surface); }
 .float-branch kbd { font: 600 10.5px/1 "SF Mono", Menlo, Consolas, monospace; padding: 2px 5px; border-radius: 4px; background: rgba(255,255,255,.25); margin-left: 2px; }
 .list-note { font-size: 12px; color: var(--muted); margin: 0 4px 10px; }
@@ -285,12 +304,7 @@ select.mini { height: 24px; padding: 0 6px; font-size: 12px; border-radius: 6px;
           <button class="send" id="send" data-i18n-title="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
         <div class="tools">
-          <select id="modelSel" class="mini" data-i18n-title="modelTitle">
-            <option value="" data-i18n="modelDefault"></option>
-            <option value="haiku">Haiku</option>
-            <option value="sonnet">Sonnet</option>
-            <option value="opus">Opus</option>
-          </select>
+          <button class="mbtn" id="modelBtn" data-i18n-title="modelTitle"></button>
           <label class="toggle" data-i18n-title="readFilesTitle"><input type="checkbox" id="readTools"><span class="sw"></span><span data-i18n="readFiles"></span></label>
           <span class="keys" data-i18n="keysHint" data-i18n-title="shortcuts"></span><span class="sp"></span>
           <button class="link-btn" id="toTerminal" data-i18n-title="toTerminalTitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 17l6-5-6-5M12 19h8"/></svg><span data-i18n="toTerminal"></span></button>
@@ -340,7 +354,7 @@ const I18N = {
     summaryHeading: 'Bring this branch back', summaryHint: 'Edit if you like, copy it, then paste it into your main Claude Code session.',
     copy: 'Copy', copied: 'Copied. Paste it into your main session.',
     renameTitle: 'Click to rename this branch', renameHint: 'Enter to save · Esc to cancel · leave empty to use the first question', versionTitle: 'Tangent on GitHub',
-    modelTitle: 'Model for this branch (Haiku is fastest and cheapest)', modelDefault: 'Default model',
+    modelTitle: 'Model and effort for this branch', sameAsMain: 'Same as main conversation', mainShort: 'Main', cliDefault: 'Default (Claude Code setting)', fastest: 'fastest', effortAuto: 'auto', noEffort: 'This model has no effort setting', modelsLoading: 'Checking which models your Claude Code offers…', pickerKeys: '↑↓ model · ←→ effort · Enter / Esc close',
     exportTitle: 'Export this branch as Markdown', openParent: 'Open the branch this one grew from',
     fromBranch: (title) => `From branch: ${title}`,
     branchesMatching: (n) => `${n} branch${n === 1 ? '' : 'es'} match`,
@@ -368,7 +382,7 @@ const I18N = {
     summaryHeading: '가지 내용을 본 대화로 가져가기', summaryHint: '필요하면 고친 뒤 복사해서, 원래 Claude Code 대화에 붙여 넣으세요.',
     copy: '복사', copied: '복사했습니다. 원래 대화에 붙여 넣으세요.',
     renameTitle: '눌러서 가지 이름 바꾸기', renameHint: 'Enter 저장 · Esc 취소 · 비우면 첫 질문으로 돌아감', versionTitle: 'GitHub 에서 Tangent 보기',
-    modelTitle: '이 가지에서 쓸 모델 (Haiku 가 가장 빠르고 저렴합니다)', modelDefault: '기본 모델',
+    modelTitle: '이 가지의 모델과 effort', sameAsMain: '본 대화와 같게', mainShort: '본 대화', cliDefault: '기본값 (Claude Code 설정)', fastest: '가장 빠름', effortAuto: '자동', noEffort: '이 모델은 effort 설정이 없습니다', modelsLoading: '사용 가능한 모델을 확인하는 중…', pickerKeys: '↑↓ 모델 · ←→ effort · Enter / Esc 닫기',
     exportTitle: '이 가지를 마크다운으로 저장', openParent: '이 가지가 뻗어 나온 가지 열기',
     fromBranch: (title) => `가지에서: ${title}`,
     branchesMatching: (n) => `가지 ${n}개가 검색됨`,
@@ -557,6 +571,7 @@ async function pollLive() {
     const s = await (await api('/api/stat?session=' + encodeURIComponent(sess))).json();
     if (sess === state.session && (s.mtime !== live.mtime || s.size !== live.size)) {
       const data = await (await api('/api/thread?session=' + encodeURIComponent(sess))).json();
+      if (sess === state.session) state.mainSpec = data.mainSpec || state.mainSpec;
       if (sess === state.session && applyThread(data.items)) { live.mtime = s.mtime; live.size = s.size; $('#sessionTitle').textContent = data.title || ''; }
     }
     $('#liveDot').classList.remove('off');
@@ -587,7 +602,7 @@ async function loadThread(scrollBottom) {
   const st = await api('/api/stat?session=' + encodeURIComponent(state.session)).then((r) => r.json()).catch(() => ({}));
   const data = await (await api('/api/thread?session=' + encodeURIComponent(state.session))).json();
   live.mtime = st.mtime; live.size = st.size;
-  state.items = data.items; state.branches = data.branches;
+  state.items = data.items; state.branches = data.branches; state.mainSpec = data.mainSpec || {};
   $('#sessionTitle').textContent = data.title || '';
   renderThread(!scrollBottom);
   if (scrollBottom) { const w = $('#threadWrap'); w.style.scrollBehavior = 'auto'; w.scrollTop = w.scrollHeight; w.style.scrollBehavior = ''; }
@@ -653,7 +668,7 @@ function renderPanel() {
   body.scrollTop = body.scrollHeight;
   comp.classList.remove('hidden');
   $('#readTools').checked = b.readTools ?? readToolsDefault();
-  $('#modelSel').value = b.model ?? modelDefault();
+  pick.model = b.model ?? modelDefault(); pick.effort = b.effort ?? effortDefault(); renderModelBtn();
   $('#toTerminal').style.display = b.sessionId ? '' : 'none';
   $('#send').disabled = state.busy.has(b.id || 'draft');
 }
@@ -667,7 +682,8 @@ function streamInner(b) {
   return chipsHtml(b._tools) + `<div class="b md">${body}</div>`;
 }
 function readToolsDefault() { try { return localStorage.getItem('tangent-readtools') === '1'; } catch { return false; } }
-function modelDefault() { try { return localStorage.getItem('tangent-model') || ''; } catch { return ''; } }
+function modelDefault() { try { const v = localStorage.getItem('tangent-spec-model'); return v === null ? '@main' : v; } catch { return '@main'; } }
+function effortDefault() { try { return localStorage.getItem('tangent-spec-effort') || ''; } catch { return ''; } }
 
 function startChildDraft(parentId, parentMsg, selection) {
   const p = state.branches.find((x) => x.id === parentId);
@@ -737,8 +753,8 @@ async function sendQuestion() {
   state.busy.add(key);
   input.value = ''; autosize();
   const readTools = $('#readTools').checked;
-  const model = $('#modelSel').value;
-  b.readTools = readTools; b.model = model;
+  const model = pick.model, effort = pick.effort;
+  b.readTools = readTools; b.model = model; b.effort = effort;
   const sent = attach.splice(0); renderAttach();
   const images = sent.map((a) => ({ media_type: a.media_type, data: a.data }));
   b.messages.push({ role: 'user', text: question, images: sent.map((a) => a.url) });
@@ -746,9 +762,9 @@ async function sendQuestion() {
   renderPanel();
 
   const url = draft ? '/api/branch' : `/api/branch/${b.id}/ask`;
-  const payload = !draft ? { session: state.session, question, readTools, model, images }
-    : b.parent ? { session: state.session, parent: b.parent, parentMsg: b.parentMsg, selection: b.selection, question, readTools, model, images }
-    : { session: state.session, anchor: b.anchor, selection: b.selection, question, readTools, model, images };
+  const payload = !draft ? { session: state.session, question, readTools, model, effort, images }
+    : b.parent ? { session: state.session, parent: b.parent, parentMsg: b.parentMsg, selection: b.selection, question, readTools, model, effort, images }
+    : { session: state.session, anchor: b.anchor, selection: b.selection, question, readTools, model, effort, images };
   let current = b, raf = 0, streamed = false;
   const sess = state.session; // results for another session must not leak into the one now on screen
   const here = () => state.session === sess;
@@ -1031,11 +1047,85 @@ $('#search').addEventListener('input', () => {
   clearTimeout(searchT);
   searchT = setTimeout(() => { renderThread(true); if (!state.open && !state.draft) renderPanel(); }, 150);
 });
-$('#modelSel').addEventListener('change', (e) => {
-  try { localStorage.setItem('tangent-model', e.target.value); } catch {}
+/* ---------- model + effort picker, like Claude Code's /model: ↑↓ model, ←→ effort, Enter/Esc close ---------- */
+const pick = { model: '@main', effort: '' };
+let MODELS = [];          // from /api/models: what this Claude Code resolves each alias to
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+const labelOf = (id) => { const m = String(id || '').replace(/^claude-/, '').match(/^([a-z]+)-([\d-]+)/); return m ? m[1][0].toUpperCase() + m[1].slice(1) + ' ' + m[2].replace(/-/g, '.') : (id || '?'); };
+function effortsFor(model) {
+  if (model === '@main') { const m = MODELS.find((x) => x.id === state.mainSpec?.model); return m ? m.efforts : EFFORTS; }
+  const m = MODELS.find((x) => x.value === model);
+  return m ? m.efforts : EFFORTS;
+}
+// What actually runs for a model/effort choice: { name, effort }
+function resolveSpec(model, effort) {
+  if (model === '@main' && state.mainSpec?.model) return { name: labelOf(state.mainSpec.model), effort: effort || state.mainSpec.effort || '' };
+  if (model === '@main') model = ''; // main conversation's model unknown: same as the Claude Code default
+  const m = MODELS.find((x) => x.value === model) || (!model && MODELS.find((x) => x.isDefault));
+  if (!m) return { name: model || t('cliDefault'), effort };
+  return { name: m.label + (m.ctx1m ? ' 1M' : ''), effort: effort || m.defaultEffort };
+}
+function renderModelBtn() {
+  const r = resolveSpec(pick.model, pick.effort);
+  $('#modelBtn').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>${esc((pick.model === '@main' ? t('mainShort') + ' · ' : '') + r.name + (r.effort ? ' · ' + r.effort : ''))}`;
+}
+function modelRows() {
+  const rows = [{ value: '@main', label: t('sameAsMain'), sub: state.mainSpec?.model ? labelOf(state.mainSpec.model) + (state.mainSpec.effort ? ' · ' + state.mainSpec.effort : '') : '' }];
+  for (const m of MODELS) rows.push({ value: m.value, label: m.isDefault ? t('cliDefault') : m.label + (m.ctx1m ? ' (1M context)' : ''), sub: m.isDefault ? m.label : (m.value === 'haiku' ? t('fastest') : '') });
+  return rows;
+}
+let popEl = null, hl = 0;
+function setPick(model, effort) {
+  pick.model = model; pick.effort = effort;
+  const lv = effortsFor(model); if (pick.effort && !lv.includes(pick.effort)) pick.effort = '';
+  try { localStorage.setItem('tangent-spec-model', pick.model); localStorage.setItem('tangent-spec-effort', pick.effort); } catch {}
   const b = state.draft || state.branches.find((x) => x.id === state.open);
-  if (b) b.model = e.target.value;
+  if (b) { b.model = pick.model; b.effort = pick.effort; }
+  renderModelBtn(); if (popEl) renderPop();
+}
+function renderPop() {
+  const rows = modelRows();
+  const lv = effortsFor(pick.model), stops = ['', ...lv], at = stops.indexOf(pick.effort);
+  const r = resolveSpec(pick.model, pick.effort);
+  const shown = pick.effort ? pick.effort : (t('effortAuto') + (r.effort ? ' (' + r.effort + ')' : ''));
+  popEl.innerHTML = `<h4>${esc(t('modelTitle'))}</h4>` +
+    rows.map((x, i) => `<div class="opt${i === hl ? ' hl' : ''}" data-mv="${esc(x.value)}"><span class="ck">${x.value === pick.model ? '✓' : ''}</span><span>${esc(x.label)}</span><span class="sub">${esc(x.sub || '')}</span></div>`).join('') +
+    (MODELS.length ? '' : `<div class="keys">${esc(t('modelsLoading'))}</div>`) +
+    (lv.length
+      ? `<div class="eff"><span class="lbl">Effort</span><button data-eff="-1" ${at <= 0 ? 'disabled' : ''}>◀</button><span class="dots">${lv.map((e, i) => `<i class="${at > 0 && i < at ? 'on' : ''}"></i>`).join('')}</span><button data-eff="1" ${at >= stops.length - 1 ? 'disabled' : ''}>▶</button><span class="val">${esc(shown)}</span></div>`
+      : `<div class="eff"><span class="lbl">${esc(t('noEffort'))}</span></div>`) +
+    `<div class="keys">${esc(t('pickerKeys'))}</div>`;
+}
+function stepEffort(d) {
+  const stops = ['', ...effortsFor(pick.model)];
+  const i = Math.max(0, Math.min(stops.length - 1, stops.indexOf(pick.effort) + d));
+  setPick(pick.model, stops[i]);
+}
+function openPop() {
+  if (popEl) return closePop();
+  popEl = document.createElement('div'); popEl.className = 'mpop';
+  hl = Math.max(0, modelRows().findIndex((x) => x.value === pick.model));
+  $('#composer').appendChild(popEl); renderPop();
+  if (!MODELS.length) loadModels().then(() => popEl && renderPop());
+}
+function closePop() { if (popEl) { popEl.remove(); popEl = null; } }
+async function loadModels() {
+  try { const r = await (await api('/api/models')).json(); MODELS = r.models || []; renderModelBtn(); } catch {}
+}
+$('#modelBtn').addEventListener('click', (e) => { e.stopPropagation(); openPop(); });
+document.addEventListener('mousedown', (e) => { if (popEl && !e.target.closest('.mpop, #modelBtn')) closePop(); });
+document.addEventListener('click', (e) => {
+  if (!popEl) return;
+  const o = e.target.closest('.mpop [data-mv]'); if (o) { setPick(o.dataset.mv, pick.effort); hl = modelRows().findIndex((x) => x.value === pick.model); renderPop(); return; }
+  const b = e.target.closest('.mpop [data-eff]'); if (b) stepEffort(Number(b.dataset.eff));
 });
+document.addEventListener('keydown', (e) => {
+  if (!popEl) return;
+  const rows = modelRows();
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopImmediatePropagation(); hl = (hl + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length; setPick(rows[hl].value, pick.effort); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); e.stopImmediatePropagation(); stepEffort(e.key === 'ArrowRight' ? 1 : -1); }
+  else if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closePop(); $('#input').focus(); }
+}, true);
 $('#sessionSel').addEventListener('change', (e) => { state.session = e.target.value; state.open = null; state.draft = null; loadThread(true); });
 $('#reload').addEventListener('click', () => loadThread(false).then(() => toast(t('reloaded'))));
 $('#theme').addEventListener('click', () => {
@@ -1090,6 +1180,7 @@ $('#lang').addEventListener('click', () => {
 /* ---------- start ---------- */
 applyI18n();
 if (BOOT && BOOT.version) $('#ver').textContent = 'v' + BOOT.version;
+loadModels();
 (async () => {
   try {
     await loadSessions();

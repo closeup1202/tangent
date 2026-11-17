@@ -201,6 +201,29 @@ function listSessions() {
 
 function safeReaddir(d) { try { return fs.readdirSync(d); } catch { return []; } }
 
+// The model and effort the main conversation used for its latest request. Claude Code logs each
+// request as an "api-request" line; we read the tail of the file and take the last main-thread one.
+function mainSpec(sid) {
+  const file = path.join(projDir, sid + '.jsonl');
+  try {
+    const size = fs.statSync(file).size, len = Math.min(size, 4 * 1024 * 1024);
+    const fd = fs.openSync(file, 'r'); const buf = Buffer.alloc(len);
+    fs.readSync(fd, buf, 0, len, size - len); fs.closeSync(fd);
+    const lines = buf.toString('utf8').split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const l = lines[i];
+      if (!l.startsWith('{"type":"api-request"') || !l.includes('"repl_main_thread"')) continue;
+      try { const o = JSON.parse(l); const p = o.params || o; return { model: o.model || p.model || '', effort: (l.match(/"effort":"(low|medium|high|xhigh|max)"/) || [])[1] || '' }; } catch {}
+    }
+    // Fallback: the model of the last assistant message (no effort recorded there)
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const m = lines[i].startsWith('{"type":"assistant"') && lines[i].match(/"model":"(claude-[^"]+)"/);
+      if (m) return { model: m[1], effort: '' };
+    }
+  } catch {}
+  return { model: '', effort: '' };
+}
+
 function sessionTitle(file) {
   let title = '';
   for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
@@ -310,14 +333,60 @@ const READ_TOOLS = 'Read,Grep,Glob';
 // onEvent receives { type: 'delta', text } and { type: 'tool', name, detail }.
 // fork: run on a throwaway copy of the session (used for summaries) so the branch history stays clean.
 // Model aliases a branch may pick. '' = whatever the user's Claude Code default is.
-const MODELS = ['', 'haiku', 'sonnet', 'opus'];
+// Models and effort, mirroring Claude Code's /model picker.
+// A model value is an alias ('fable', 'opus[1m]', ...) or a full model id; '' / 'default' = the user's default.
+const MODEL_ALIASES = ['default', 'fable', 'opus', 'opus[1m]', 'sonnet', 'sonnet[1m]', 'haiku'];
+// '@main' = whatever the main conversation is using (model and effort), re-read at each question
+const validModel = (m) => typeof m === 'string' && (m === '' || m === '@main' || /^(default|best|fable|opus|sonnet|haiku)(\[1m\])?$/.test(m) || /^claude-[a-z0-9.-]+(\[1m\])?$/.test(m));
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+const validEffort = (e) => e === '' || EFFORTS.includes(e);
+// Effort support per resolved model id (from the Claude Code model-config docs)
+function effortInfo(id) {
+  if (/fable|opus-5|sonnet-5|haiku-5|opus-4-8|opus-4-7/.test(id)) return { levels: EFFORTS, def: /opus-4-7/.test(id) ? 'xhigh' : 'medium' };
+  if (/opus-4-6|sonnet-4-6/.test(id)) return { levels: ['low', 'medium', 'high', 'max'], def: 'high' };
+  return { levels: [], def: '' };
+}
+const modelLabel = (id) => {
+  const m = String(id).replace(/^claude-/, '').match(/^([a-z]+)-([\d-]+)/);
+  return m ? m[1][0].toUpperCase() + m[1].slice(1) + ' ' + m[2].replace(/-/g, '.') : id;
+};
+// Ask the installed Claude Code what each alias resolves to: start it, read the init event, stop it
+// before the request completes. Runs once per server, in parallel, about 1.5 seconds.
+let modelsCache = null;
+function probeModel(alias) {
+  return new Promise((resolve) => {
+    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', '', '--strict-mcp-config', '--no-session-persistence'];
+    if (alias !== 'default') args.push('--model', alias);
+    const p = spawnClaude(args, { cwd: CWD, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+    let buf = '', done = false;
+    const finish = (id) => { if (done) return; done = true; clearTimeout(timer); try { p.kill(); } catch {} resolve(id); };
+    const timer = setTimeout(() => finish(null), 20000);
+    p.stdout.setEncoding('utf8');
+    p.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const l = buf.slice(0, i); buf = buf.slice(i + 1); try { const o = JSON.parse(l); if (o.type === 'system' && o.subtype === 'init') finish(o.model || null); } catch {} } });
+    p.on('error', () => finish(null));
+    p.on('close', () => finish(null));
+    p.stdin.on('error', () => {});
+    p.stdin.end('.');
+  });
+}
+function listModels() {
+  modelsCache ||= Promise.all(MODEL_ALIASES.map(async (alias) => {
+    const id = await probeModel(alias);
+    if (!id) return null;
+    const ctx1m = alias.endsWith('[1m]');
+    const e = effortInfo(id);
+    return { value: alias === 'default' ? '' : alias, id, label: modelLabel(id), ctx1m, isDefault: alias === 'default', efforts: e.levels, defaultEffort: e.def };
+  })).then((list) => list.filter(Boolean)).catch(() => []);
+  return modelsCache;
+}
 
 // images: [{ media_type, data(base64) }] are sent with the prompt as one stream-json user message.
-function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = false, model = '', images = [] }, onEvent = () => {}) {
+function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = false, model = '', effort = '', images = [] }, onEvent = () => {}) {
   return new Promise((resolve) => {
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
       '--tools', readTools ? READ_TOOLS : '', '--strict-mcp-config'];
-    if (model && MODELS.includes(model)) args.push('--model', model);
+    if (model && model !== 'default' && validModel(model)) args.push('--model', model);
+    if (effort && validEffort(effort)) args.push('--effort', effort);
     if (images.length) args.push('--input-format', 'stream-json');
     if (resumeId) args.push('--resume', resumeId);
     else args.push('--append-system-prompt-file', ctx, '-n', name);
@@ -467,6 +536,7 @@ function serve() {
 
       if (req.method === 'POST' && u.pathname === '/api/ping') return json(res, { ok: true });
       if (req.method === 'GET' && u.pathname === '/api/sessions') return json(res, { sessions: listSessions() });
+      if (req.method === 'GET' && u.pathname === '/api/models') return json(res, { models: await listModels(), efforts: EFFORTS });
       if (req.method === 'GET' && u.pathname === '/api/stat') {
         // Cheap change check for live refresh: the page polls this and reloads the thread when it changes
         const sid = u.searchParams.get('session');
@@ -477,7 +547,7 @@ function serve() {
       if (req.method === 'GET' && u.pathname === '/api/thread') {
         const sid = u.searchParams.get('session');
         const items = parseSession(sid);
-        return json(res, { session: sid, title: sessionTitle(path.join(projDir, sid + '.jsonl')), items, branches: loadStore(sid).branches });
+        return json(res, { session: sid, title: sessionTitle(path.join(projDir, sid + '.jsonl')), items, branches: loadStore(sid).branches, mainSpec: mainSpec(sid) });
       }
 
       const m = u.pathname.match(/^\/api\/branch(?:\/([a-z0-9]+))?(?:\/(ask|terminal|summary))?$/);
@@ -536,7 +606,7 @@ function serve() {
             b = {
               id: crypto.randomBytes(4).toString('hex'), anchor: parent.anchor, parent: parent.id, parentMsg: pm, selection,
               anchorPreview: parent.messages[pm].text.replace(/\s+/g, ' ').slice(0, 120), anchorRole: parent.messages[pm].role,
-              sessionId: null, createdAt: new Date().toISOString(), messages: [], readTools: !!parent.readTools, model: parent.model || '',
+              sessionId: null, createdAt: new Date().toISOString(), messages: [], readTools: !!parent.readTools, model: parent.model || '', effort: parent.effort || '',
             };
             fs.writeFileSync(ctxFile(b.id), buildChildContext(sid, parent, b), 'utf8');
             store.branches.push(b);
@@ -548,7 +618,7 @@ function serve() {
             b = {
               id: crypto.randomBytes(4).toString('hex'), anchor, selection,
               anchorPreview: items[anchor].text.replace(/\s+/g, ' ').slice(0, 120), anchorRole: items[anchor].role,
-              sessionId: null, createdAt: new Date().toISOString(), messages: [], readTools: false, model: '',
+              sessionId: null, createdAt: new Date().toISOString(), messages: [], readTools: false, model: '', effort: '',
             };
             fs.writeFileSync(ctxFile(b.id), buildContext(sid, items, b), 'utf8');
             store.branches.push(b);
@@ -558,7 +628,8 @@ function serve() {
           }
           if (pending.has(b.id)) return send(res, 409, 'This branch is still answering.');
           if (typeof body.readTools === 'boolean') b.readTools = body.readTools;
-          if (typeof body.model === 'string' && MODELS.includes(body.model)) b.model = body.model;
+          if (validModel(body.model)) b.model = body.model;
+          if (validEffort(body.effort)) b.effort = body.effort;
           const userMsg = { role: 'user', text: question, time: new Date().toISOString() };
           if (images.length) userMsg.images = saveImages(b.id, b.messages.length, images);
           b.messages.push(userMsg);
@@ -579,7 +650,9 @@ function serve() {
           // Session name shown in /resume. It may pass through a shell, so strip risky characters
           const name = ('tangent: ' + (b.selection || b.anchorPreview).replace(/\s+/g, ' ')).replace(/["'`$%!^&|<>\\]/g, '').slice(0, 34);
           const prompt = question || 'Look at the attached image' + (images.length > 1 ? 's' : '') + ' in the context above.';
-          const r = await runClaude({ prompt, resumeId: b.sessionId, ctx: ctxFile(b.id), name, readTools: !!b.readTools, model: b.model || '', images }, out);
+          let model = b.model || '', effort = b.effort || '';
+          if (model === '@main') { const ms = mainSpec(sid); model = ms.model; effort = effort || ms.effort; }
+          const r = await runClaude({ prompt, resumeId: b.sessionId, ctx: ctxFile(b.id), name, readTools: !!b.readTools, model, effort, images }, out);
           pending.delete(b.id);
           const fresh = loadStore(sid);
           let fb = fresh.branches.find((x) => x.id === b.id);
@@ -588,6 +661,7 @@ function serve() {
           if (r.sessionId) fb.sessionId = r.sessionId;
           fb.readTools = !!b.readTools;
           fb.model = b.model || '';
+          fb.effort = b.effort || '';
           const msg = { role: r.error ? 'error' : 'assistant', text: r.error || r.text, time: new Date().toISOString() };
           if (r.tools.length) msg.tools = r.tools;
           fb.messages.push(msg);
