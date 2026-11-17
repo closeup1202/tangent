@@ -4,8 +4,7 @@
 
 English | [한국어](README.ko.md)
 
-<!-- TODO: demo GIF — select a sentence → "Branch" → answer streams in the side panel -->
-<!-- ![demo](docs/demo.gif) -->
+![Select a sentence, click Branch, ask a side question; the answer streams in the side panel and a twig grows from the main thread](docs/demo.gif)
 
 A Claude Code conversation is a single line. When you want to ask *"wait, what does this part mean?"* halfway through a task, you have two options: ask it in the main thread and clutter the context, or don't ask at all.
 
