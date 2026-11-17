@@ -212,6 +212,7 @@ select.mini { height: 24px; padding: 0 6px; font-size: 12px; border-radius: 6px;
 .btn { height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.primary:hover { background: var(--accent-strong); }
+.btn:disabled { opacity: .45; cursor: default; }
 .blist { list-style: none; margin: 0; padding: 0; }
 .blist li { position: relative; padding: 10px 12px 10px 34px; border-radius: 10px; cursor: pointer; margin-bottom: 4px; }
 .blist li:hover { background: var(--sunken); }
@@ -907,11 +908,24 @@ document.addEventListener('click', async (e) => {
     const b = state.branches.find((x) => x.id === state.open);
     if (!b) return;
     const btn = el.closest('#summaryBtn'); btn.disabled = true;
-    toast(t('summarizing'));
+    // Open the window right away and stream the summary into it
+    const m = showSummary();
     try {
-      const r = await (await api(`/api/branch/${b.id}/summary`, { method: 'POST', body: JSON.stringify({ session: state.session }) })).json();
-      showSummary(r.summary);
-    } catch (err) { toast(t('summaryFailed') + String(err.message || err).slice(0, 120)); }
+      const r = await api(`/api/branch/${b.id}/summary`, { method: 'POST', body: JSON.stringify({ session: state.session }) });
+      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '', text = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let k;
+        while ((k = buf.indexOf('\n')) >= 0) {
+          const ev = JSON.parse(buf.slice(0, k)); buf = buf.slice(k + 1);
+          if (ev.type === 'delta') { text += ev.text; m.update(text); }
+          else if (ev.type === 'done') m.finish(ev.summary || text);
+          else if (ev.type === 'error') m.fail(ev.error);
+        }
+      }
+    } catch (err) { m.fail(String(err.message || err)); }
     finally { btn.disabled = false; }
     return;
   }
@@ -967,12 +981,15 @@ $('#readTools').addEventListener('change', (e) => {
 });
 
 /* ---------- "Bring back" summary: review, edit, copy, paste into the main session ---------- */
-function showSummary(text) {
+// Opens at once in a "writing" state; update() streams text in, finish() makes it editable, fail() shows the error.
+function showSummary() {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
-  bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h3>${TWIG_ICO}${esc(t('summaryHeading'))}</h3><p>${esc(t('summaryHint'))}</p><textarea></textarea><div class="row-btns"><button class="btn" data-x>${esc(t('close'))}</button><button class="btn primary" data-copy>${esc(t('copy'))}</button></div></div>`;
-  const ta = bg.querySelector('textarea'); ta.value = text;
-  const close = () => { bg.remove(); document.removeEventListener('keydown', onKey); };
+  bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h3>${TWIG_ICO}${esc(t('summaryHeading'))}</h3><p>${esc(t('summaryHint'))}</p><textarea readonly></textarea><div class="row-btns"><button class="btn" data-x>${esc(t('close'))}</button><button class="btn primary" data-copy disabled>${esc(t('copy'))}</button></div></div>`;
+  const ta = bg.querySelector('textarea'), copyBtn = bg.querySelector('[data-copy]'), hint = bg.querySelector('p');
+  ta.placeholder = t('summarizing');
+  let closed = false;
+  const close = () => { closed = true; bg.remove(); document.removeEventListener('keydown', onKey); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   bg.addEventListener('click', async (e) => {
     if (e.target === bg || e.target.closest('[data-x]')) return close();
@@ -983,7 +1000,11 @@ function showSummary(text) {
   });
   document.addEventListener('keydown', onKey);
   document.body.appendChild(bg);
-  ta.focus();
+  return {
+    update(text) { if (!closed) { ta.value = text; ta.scrollTop = ta.scrollHeight; } },
+    finish(text) { if (closed) return; ta.value = text; ta.readOnly = false; copyBtn.disabled = false; ta.focus(); },
+    fail(msg) { if (closed) return; ta.placeholder = ''; ta.value = ''; hint.textContent = t('summaryFailed') + String(msg).slice(0, 200); hint.style.color = '#B3261E'; },
+  };
 }
 
 $('#lang').addEventListener('click', () => {

@@ -414,9 +414,13 @@ function serve() {
           const b = store.branches.find((x) => x.id === bid);
           if (!b?.sessionId) return send(res, 400, 'This branch has no conversation yet.');
           if (pending.has(b.id)) return send(res, 409, 'This branch is still answering.');
-          const r = await runClaude({ prompt: SUMMARY_PROMPT, resumeId: b.sessionId, fork: true, model: b.model || '' });
-          if (r.error) return send(res, 502, r.error);
-          return json(res, { summary: r.text });
+          // Stream the summary so the page can show text as it arrives. Summaries always use Haiku:
+          // the task is simple, and it is roughly a third faster than the default model.
+          res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' });
+          const send_ = (o) => res.write(JSON.stringify(o) + '\n');
+          const r = await runClaude({ prompt: SUMMARY_PROMPT, resumeId: b.sessionId, fork: true, model: 'haiku' }, (o) => { if (o.type === 'delta') send_(o); });
+          send_(r.error ? { type: 'error', error: r.error } : { type: 'done', summary: r.text });
+          return res.end();
         }
         if (req.method === 'POST' && (!bid || action === 'ask')) {
           const question = String(body.question || '').trim();
