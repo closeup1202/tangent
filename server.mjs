@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const IS_WIN = process.platform === 'win32';
@@ -106,11 +106,18 @@ function openUrl(url) {
 const shQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
 const onPath = (name) => (process.env.PATH || '').split(path.delimiter).some((d) => d && (fs.existsSync(path.join(d, name)) || (IS_WIN && fs.existsSync(path.join(d, name + '.exe')))));
-// Run a short command and wait for it (used for multiplexers that answer right away)
-function runSync(cmd, args) {
-  const r = spawnSync(cmd, args, { cwd: CWD, encoding: 'utf8', timeout: 8000, windowsHide: true });
-  if (r.error || r.status !== 0) throw new Error((r.stderr || String(r.error || '')).trim().slice(0, 300) || `${cmd} exited with ${r.status}`);
-  return r.stdout;
+// Run a short command and wait for it (used for multiplexers that answer right away). Async, so a
+// slow multiplexer never freezes the server (and the branch answers streaming through it).
+function runAsync(cmd, args) {
+  return new Promise((resolve, reject) => {
+    let out = '', err = '';
+    const p = spawn(cmd, args, { cwd: CWD, windowsHide: true });
+    const timer = setTimeout(() => { killTree(p); reject(new Error(`${cmd} timed out`)); }, 8000);
+    p.stdout.setEncoding('utf8'); p.stdout.on('data', (d) => (out += d));
+    p.stderr.setEncoding('utf8'); p.stderr.on('data', (d) => (err += d));
+    p.on('error', (e) => { clearTimeout(timer); reject(e); });
+    p.on('close', (code) => { clearTimeout(timer); code === 0 ? resolve(out) : reject(new Error(err.trim().slice(0, 300) || `${cmd} exited with ${code}`)); });
+  });
 }
 
 // Continue a branch session as a regular Claude Code session (with tools) in a terminal.
@@ -119,46 +126,46 @@ function runSync(cmd, args) {
 // fall back to the OS default terminal. If nothing can be opened, return the command to paste.
 // TANGENT_TERMINAL overrides everything: a shell command template with {cwd} and {cmd} placeholders,
 // e.g. TANGENT_TERMINAL='open -na Ghostty.app --args --working-directory={cwd} -e {cmd}'.
-function openTerminal(sessionId) {
+async function openTerminal(sessionId) {
   const id = sessionId.replace(/[^0-9a-f-]/gi, '');
   const claudeCmd = `claude -r ${id}`;
   const command = IS_WIN ? `cd "${CWD}"; claude -r '${id}'` : `cd ${shQuote(CWD)} && ${claudeCmd}`;
   const env = process.env;
   const tried = [];
-  const attempt = (via, fn) => { try { fn(); return { opened: true, via, command }; } catch (e) { tried.push(`${via}: ${e.message}`); return null; } };
+  const attempt = async (via, fn) => { try { await fn(); return { opened: true, via, command }; } catch (e) { tried.push(`${via}: ${e.message}`); return null; } };
   let r;
 
   if (env.TANGENT_TERMINAL) {
     const line = env.TANGENT_TERMINAL.replaceAll('{cwd}', IS_WIN ? `"${CWD}"` : shQuote(CWD)).replaceAll('{cmd}', IS_WIN ? claudeCmd : shQuote(claudeCmd));
-    r = attempt('TANGENT_TERMINAL', () => (IS_WIN ? detached('cmd', ['/c', line], { cwd: CWD }) : detached('/bin/sh', ['-c', line], { cwd: CWD })));
+    r = await attempt('TANGENT_TERMINAL', () => (IS_WIN ? detached('cmd', ['/c', line], { cwd: CWD }) : detached('/bin/sh', ['-c', line], { cwd: CWD })));
     if (r) return r;
   }
   // herdr: split the pane that ran /tg and run the session in the new pane
   if (env.HERDR_PANE_ID) {
     const bin = env.HERDR_BIN_PATH && fs.existsSync(env.HERDR_BIN_PATH) && !fs.statSync(env.HERDR_BIN_PATH).isDirectory() ? env.HERDR_BIN_PATH : 'herdr';
-    r = attempt('herdr', () => {
-      const out = JSON.parse(runSync(bin, ['pane', 'split', '--current', '--direction', 'right', '--cwd', CWD, '--focus']));
+    r = await attempt('herdr', async () => {
+      const out = JSON.parse(await runAsync(bin, ['pane', 'split', '--current', '--direction', 'right', '--cwd', CWD, '--focus']));
       const pane = out?.result?.pane?.pane_id;
       if (!pane) throw new Error('no pane id in herdr response');
-      runSync(bin, ['pane', 'run', String(pane), claudeCmd]);
+      await runAsync(bin, ['pane', 'run', String(pane), claudeCmd]);
     });
     if (r) return r;
   }
   // tmux: a new window in the same tmux session
   if (env.TMUX) {
-    r = attempt('tmux', () => runSync('tmux', ['new-window', '-c', CWD, claudeCmd]));
+    r = await attempt('tmux', () => runAsync('tmux', ['new-window', '-c', CWD, claudeCmd]));
     if (r) return r;
   }
   // WezTerm: a new tab in the same window
   if (env.WEZTERM_PANE) {
-    r = attempt('wezterm', () => runSync('wezterm', ['cli', 'spawn', '--cwd', CWD, '--', ...claudeCmd.split(' ')]));
+    r = await attempt('wezterm', () => runAsync('wezterm', ['cli', 'spawn', '--cwd', CWD, '--', ...claudeCmd.split(' ')]));
     if (r) return r;
   }
   if (IS_WIN) {
     const enc = Buffer.from(`claude -r '${id}'`, 'utf16le').toString('base64');
     // Windows Terminal: a new tab in the current window
     if (env.WT_SESSION && onPath('wt')) {
-      r = attempt('windows-terminal', () => detached('wt', ['-w', '0', 'new-tab', '-d', CWD, 'powershell', '-NoExit', '-EncodedCommand', enc]));
+      r = await attempt('windows-terminal', () => detached('wt', ['-w', '0', 'new-tab', '-d', CWD, 'powershell', '-NoExit', '-EncodedCommand', enc]));
       if (r) return r;
     }
     detached('cmd', ['/c', 'start', '', 'powershell', '-NoExit', '-EncodedCommand', enc], { cwd: CWD });
@@ -169,13 +176,13 @@ function openTerminal(sessionId) {
     const app = env.TERM_PROGRAM || '';
     // Ghostty: a new window (Ghostty asks for confirmation each time a window is opened with -e)
     if (/ghostty/i.test(app)) {
-      r = attempt('ghostty', () => detached('open', ['-na', 'Ghostty.app', '--args', '-e', shell, '-lc', `${command}; exec ${shell} -l`]));
+      r = await attempt('ghostty', () => detached('open', ['-na', 'Ghostty.app', '--args', '-e', shell, '-lc', `${command}; exec ${shell} -l`]));
       if (r) return r;
     }
     const as = command.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     // iTerm2: a new window with the default profile
     if (app === 'iTerm.app') {
-      r = attempt('iterm', () => detached('osascript', ['-e', 'tell application "iTerm2"', '-e', 'set w to (create window with default profile)', '-e', `tell current session of w to write text "${as}"`, '-e', 'activate', '-e', 'end tell']));
+      r = await attempt('iterm', () => detached('osascript', ['-e', 'tell application "iTerm2"', '-e', 'set w to (create window with default profile)', '-e', `tell current session of w to write text "${as}"`, '-e', 'activate', '-e', 'end tell']));
       if (r) return r;
     }
     detached('osascript', ['-e', `tell application "Terminal" to do script "${as}"`, '-e', 'tell application "Terminal" to activate']);
@@ -509,7 +516,9 @@ function listModels() {
 }
 
 // images: [{ media_type, data(base64) }] are sent with the prompt as one stream-json user message.
-function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = false, model = '', effort = '', images = [] }, onEvent = () => {}) {
+// signal: an AbortSignal that stops the run (the client went away). Every run is also capped at 20 minutes.
+const RUN_LIMIT_MS = 20 * 60 * 1000;
+function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = false, model = '', effort = '', images = [], signal }, onEvent = () => {}) {
   return new Promise((resolve) => {
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
       '--tools', readTools ? READ_TOOLS : '', '--strict-mcp-config'];
@@ -521,6 +530,11 @@ function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = fals
     if (fork) args.push('--fork-session', '--no-session-persistence');
     active++;
     const p = spawnClaude(args, { cwd: CWD, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    let stopped = '';
+    const stop = (why) => { if (!stopped) { stopped = why; killTree(p); } };
+    const limit = setTimeout(() => stop('Stopped: no result after 20 minutes.'), RUN_LIMIT_MS);
+    const onAbort = () => stop('Cancelled.');
+    if (signal) { if (signal.aborted) onAbort(); else signal.addEventListener('abort', onAbort, { once: true }); }
     let buf = '', err = '', sessionId = resumeId || null, text = '', result = null;
     const tools = [];
     p.stdout.setEncoding('utf8');
@@ -557,6 +571,9 @@ function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = fals
     p.on('error', (e) => { err += String(e); });
     p.on('close', (code) => {
       active--;
+      clearTimeout(limit);
+      if (signal) signal.removeEventListener('abort', onAbort);
+      if (stopped) return resolve({ sessionId, text: text.trim(), tools, error: stopped });
       const isErr = code !== 0 || !result || result.is_error;
       // result.result only holds the last turn's text, so prefer the streamed text when tools were used
       const final = (text.trim() ? text.trim() : '') || (result && typeof result.result === 'string' && result.result) || '';
@@ -724,7 +741,7 @@ function serve() {
 
         if (req.method === 'DELETE' && bid) {
           const gone = withDescendants(store.branches, bid);
-          for (const id of gone) { deleted.add(id); fs.rmSync(imgDir(id), { recursive: true, force: true }); }
+          for (const id of gone) { deleted.add(id); fs.rmSync(imgDir(id), { recursive: true, force: true }); fs.rmSync(ctxFile(id), { force: true }); }
           store.branches = store.branches.filter((b) => !gone.has(b.id));
           saveStore(sid, store);
           return json(res, { ok: true });
@@ -741,7 +758,7 @@ function serve() {
         if (req.method === 'POST' && bid && action === 'terminal') {
           const b = store.branches.find((x) => x.id === bid);
           if (!b?.sessionId) return send(res, 400, 'This branch has no conversation yet.');
-          return json(res, { ok: true, ...openTerminal(b.sessionId) });
+          return json(res, { ok: true, ...(await openTerminal(b.sessionId)) });
         }
         if (req.method === 'POST' && bid && action === 'note') {
           // Stream a study note written from the branch (on a throwaway fork, so the branch stays clean)
@@ -753,7 +770,8 @@ function serve() {
           res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' });
           const send_ = (o) => res.write(JSON.stringify(o) + '\n');
           const title = sessionTitle(path.join(projDir, sid + '.jsonl'));
-          const r = await runClaude({ prompt: notePrompt(title), resumeId: b.sessionId, fork: true, model, effort }, (o) => { if (o.type === 'delta') send_(o); });
+          const ac = new AbortController(); res.on('close', () => { if (!res.writableEnded) ac.abort(); });
+          const r = await runClaude({ prompt: notePrompt(title), resumeId: b.sessionId, fork: true, model, effort, signal: ac.signal }, (o) => { if (o.type === 'delta') send_(o); });
           send_(r.error ? { type: 'error', error: r.error } : { type: 'done', note: r.text, dir: notesDir() });
           return res.end();
         }
@@ -775,7 +793,8 @@ function serve() {
           // the task is simple, and it is roughly a third faster than the default model.
           res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' });
           const send_ = (o) => res.write(JSON.stringify(o) + '\n');
-          const r = await runClaude({ prompt: SUMMARY_PROMPT, resumeId: b.sessionId, fork: true, model: 'haiku' }, (o) => { if (o.type === 'delta') send_(o); });
+          const ac = new AbortController(); res.on('close', () => { if (!res.writableEnded) ac.abort(); });
+          const r = await runClaude({ prompt: SUMMARY_PROMPT, resumeId: b.sessionId, fork: true, model: 'haiku', signal: ac.signal }, (o) => { if (o.type === 'delta') send_(o); });
           send_(r.error ? { type: 'error', error: r.error } : { type: 'done', summary: r.text });
           return res.end();
         }
@@ -882,8 +901,8 @@ function send(res, code, msg) { res.writeHead(code, { 'content-type': 'text/plai
 function json(res, o) { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(o)); }
 function readBody(req, limit = 1e6) {
   return new Promise((resolve, reject) => {
-    let d = ''; req.setEncoding('utf8');
-    req.on('data', (c) => { d += c; if (d.length > limit) { reject(new Error('too large')); req.destroy(); } });
-    req.on('end', () => { try { resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(e); } });
+    const chunks = []; let size = 0;
+    req.on('data', (c) => { size += c.length; if (size > limit) { reject(new Error('too large')); req.destroy(); } else chunks.push(c); });
+    req.on('end', () => { try { const d = Buffer.concat(chunks).toString('utf8'); resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(e); } });
   });
 }

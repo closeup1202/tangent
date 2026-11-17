@@ -353,6 +353,7 @@ const I18N = {
     summarizing: 'Summarizing this branch…', summaryFailed: 'Could not summarize: ',
     summaryHeading: 'Bring this branch back', summaryHint: 'Edit if you like, copy it, then paste it into your main Claude Code session.',
     copy: 'Copy', copied: 'Copied. Paste it into your main session.',
+    streamCut: 'The answer was interrupted; showing what was saved.', imageQuestion: 'Image question',
     note: 'Note', noteTitle: 'Write a study note from this branch and save it as Markdown on your PC', noteHeading: 'Study note', noteHint: 'Claude writes a note you can keep. Edit it if you like, then save.', noteWhere: 'Saved to: ', noteWriting: 'Writing the note…', saveNote: 'Save', noteSaved: 'Note saved', noteSavedAt: 'Saved: ', openFolder: 'Open notes folder', noteFailed: 'Could not write the note: ',
     renameTitle: 'Click to rename this branch', renameHint: 'Enter to save · Esc to cancel · leave empty to use the first question', versionTitle: 'Tangent on GitHub',
     modelTitle: 'Model and effort for this branch', sameAsMain: 'Same as main conversation', mainShort: 'Main', cliDefault: 'Default (Claude Code setting)', fastest: 'fastest', effortAuto: 'auto', noEffort: 'This model has no effort setting', modelsLoading: 'Checking which models your Claude Code offers…', pickerKeys: '↑↓ model · ←→ effort · Enter / Esc close',
@@ -382,6 +383,7 @@ const I18N = {
     summarizing: '가지를 요약하는 중…', summaryFailed: '요약하지 못했습니다: ',
     summaryHeading: '가지 내용을 본 대화로 가져가기', summaryHint: '필요하면 고친 뒤 복사해서, 원래 Claude Code 대화에 붙여 넣으세요.',
     copy: '복사', copied: '복사했습니다. 원래 대화에 붙여 넣으세요.',
+    streamCut: '답변이 중간에 끊겼습니다. 저장된 내용으로 다시 맞췄습니다.', imageQuestion: '이미지 질문',
     note: '노트', noteTitle: '이 가지에서 배운 내용을 공부 노트로 정리해 PC 에 마크다운으로 저장', noteHeading: '공부 노트', noteHint: 'Claude 가 나중에 봐도 이해되는 노트를 씁니다. 필요하면 고친 뒤 저장하세요.', noteWhere: '저장 위치: ', noteWriting: '노트를 쓰는 중…', saveNote: '저장', noteSaved: '노트를 저장했습니다', noteSavedAt: '저장됨: ', openFolder: '노트 폴더 열기', noteFailed: '노트를 만들지 못했습니다: ',
     renameTitle: '눌러서 가지 이름 바꾸기', renameHint: 'Enter 저장 · Esc 취소 · 비우면 첫 질문으로 돌아감', versionTitle: 'GitHub 에서 Tangent 보기',
     modelTitle: '이 가지의 모델과 effort', sameAsMain: '본 대화와 같게', mainShort: '본 대화', cliDefault: '기본값 (Claude Code 설정)', fastest: '가장 빠름', effortAuto: '자동', noEffort: '이 모델은 effort 설정이 없습니다', modelsLoading: '사용 가능한 모델을 확인하는 중…', pickerKeys: '↑↓ 모델 · ←→ effort · Enter / Esc 닫기',
@@ -494,8 +496,11 @@ function fmtTime(ts) { if (!ts) return ''; const d = new Date(ts); return isNaN(
 // Only top-level branches grow from the main thread; nested ones hang off their parent branch
 function branchesOf(i) { return state.branches.filter((b) => b.anchor === i && !b.parent); }
 function childrenOf(id) { return state.branches.filter((b) => b.parent === id); }
-function branchTitle(b) { return b.title || (b.messages.length ? b.messages[0].text.split('\n')[0] : t('newBranch')); }
-function defaultTitle(b) { return b.messages.length ? b.messages[0].text.split('\n')[0] : t('newBranch'); }
+function defaultTitle(b) {
+  const q = b.messages.find((m) => m.role === 'user');
+  return (q?.text || '').split('\n')[0] || (q?.images?.length ? t('imageQuestion') : '') || plain(b.selection || b.anchorPreview || '').slice(0, 60) || t('newBranch');
+}
+function branchTitle(b) { return b.title || defaultTitle(b); }
 
 // Highlight `text` inside `container` and tag it with the branch id (best effort: first line, first match)
 function markText(container, text, id) {
@@ -526,6 +531,25 @@ function rowHtml(it, q) {
     </div>
     <div class="gutter"><span class="node"></span>${bs.length ? twigSvg(bs, state.open) : ''}</div>
   </div>`;
+}
+
+// Re-render only the given rows (their twigs or highlights changed)
+function refreshRows(indices) {
+  const q = $('#search').value.trim().toLowerCase();
+  for (const i of new Set(indices)) {
+    const row = document.querySelector(`.row[data-i="${i}"]`), it = state.items[i];
+    if (!row || !it) continue;
+    const tmp = document.createElement('div'); tmp.innerHTML = rowHtml(it, q);
+    row.replaceWith(tmp.firstElementChild);
+    for (const b of state.branches) if (!b.parent && b.anchor === i && b.selection) markText(document.querySelector(`.msg[data-i="${i}"] .body`), b.selection, b.id);
+  }
+}
+// Only which branch is open changed: toggle the highlighted twig
+function refreshTwigs() { document.querySelectorAll('.twig-hit').forEach((g) => g.classList.toggle('on', g.dataset.b === state.open)); }
+// Search: show or hide existing rows instead of rebuilding them
+function applySearch() {
+  const q = $('#search').value.trim().toLowerCase();
+  document.querySelectorAll('#thread .row').forEach((row) => { const it = state.items[Number(row.dataset.i)]; row.classList.toggle('hidden', !!q && !!it && !it.text.toLowerCase().includes(q)); });
 }
 
 function renderThread(keepScroll) {
@@ -606,8 +630,11 @@ async function loadSessions() {
 
 async function loadThread(scrollBottom) {
   if (!state.session) { $('#thread').innerHTML = '<div class="empty">' + t('noSessions') + '</div>'; return; }
-  const st = await api('/api/stat?session=' + encodeURIComponent(state.session)).then((r) => r.json()).catch(() => ({}));
-  const data = await (await api('/api/thread?session=' + encodeURIComponent(state.session))).json();
+  const sess = state.session;
+  const st = await api('/api/stat?session=' + encodeURIComponent(sess)).then((r) => r.json()).catch(() => ({}));
+  const data = await (await api('/api/thread?session=' + encodeURIComponent(sess))).json();
+  if (sess !== state.session) return; // the user switched sessions meanwhile
+  live.held = null;
   live.mtime = st.mtime; live.size = st.size;
   state.items = data.items; state.branches = data.branches; state.mainSpec = data.mainSpec || {};
   $('#sessionTitle').textContent = data.title || '';
@@ -662,7 +689,8 @@ function renderPanel() {
   const title = branchTitle(b);
   const noteBtn = b.sessionId && !state.draft ? '<button class="icon-btn" id="noteBtn" title="' + t('noteTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/></svg><span style="font-size:12px">' + t('note') + '</span></button>' : '';
   const exportBtn = b.id && b.messages.length && !state.draft ? '<button class="icon-btn" id="exportBtn" title="' + t('exportTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 19h14"/></svg></button>' : '';
-  head.innerHTML = `<button class="icon-btn" id="backList" title="${t('back')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${TWIG_ICO}<span class="btitle"${b.id && !state.draft ? ' data-rename title="' + t('renameTitle') + '"' : ''}>${esc(title)}</span></h2>${noteBtn}${exportBtn}${b.sessionId && !state.draft ? '<button class="icon-btn" id="summaryBtn" title="' + t('summaryTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6v3H9z"/><path d="M8 5H6v15h12V5h-2"/><path d="M9 12h6M9 16h4"/></svg><span style="font-size:12px">' + t('summary') + '</span></button>' : ''}${b.id && !state.draft ? '<button class="icon-btn" id="delBranch" title="' + t('deleteBranch') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button>' : ''}`;
+  const renaming = document.querySelector('#panelHead input.rename');
+  if (!renaming || renaming.dataset.bid !== b.id) head.innerHTML = `<button class="icon-btn" id="backList" title="${t('back')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${TWIG_ICO}<span class="btitle"${b.id && !state.draft ? ' data-rename title="' + t('renameTitle') + '"' : ''}>${esc(title)}</span></h2>${noteBtn}${exportBtn}${b.sessionId && !state.draft ? '<button class="icon-btn" id="summaryBtn" title="' + t('summaryTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6v3H9z"/><path d="M8 5H6v15h12V5h-2"/><path d="M9 12h6M9 16h4"/></svg><span style="font-size:12px">' + t('summary') + '</span></button>' : ''}${b.id && !state.draft ? '<button class="icon-btn" id="delBranch" title="' + t('deleteBranch') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button>' : ''}`;
   let html = anchorQuote(b);
   b.messages.forEach((m, k) => {
     // data-m lets a selection inside a branch message start a nested branch
@@ -676,9 +704,12 @@ function renderPanel() {
   body.scrollTop = body.scrollHeight;
   comp.classList.remove('hidden');
   $('#readTools').checked = b.readTools ?? readToolsDefault();
-  pick.model = b.model ?? modelDefault(); pick.effort = b.effort ?? effortDefault(); renderModelBtn();
+  pick.model = b.model !== undefined ? b.model : (b.id ? '' : modelDefault());
+  pick.effort = b.effort !== undefined ? b.effort : (b.id ? '' : effortDefault());
+  { const lv = effortsFor(pick.model); if (pick.effort && lv.length && !lv.includes(pick.effort)) pick.effort = ''; }
+  renderModelBtn();
   $('#toTerminal').style.display = b.sessionId ? '' : 'none';
-  $('#send').disabled = state.busy.has(b.id || 'draft');
+  $('#send').disabled = state.busy.has(b.id || b._key);
 }
 
 function chipsHtml(tools) {
@@ -697,7 +728,7 @@ function startChildDraft(parentId, parentMsg, selection) {
   const p = state.branches.find((x) => x.id === parentId);
   if (!p || !p.messages[parentMsg]) return;
   state.open = null;
-  state.draft = { id: null, parent: p.id, parentMsg, anchor: p.anchor, selection: selection || '', anchorRole: p.messages[parentMsg].role, messages: [], readTools: p.readTools, model: p.model };
+  state.draft = { id: null, parent: p.id, parentMsg, anchor: p.anchor, selection: selection || '', anchorRole: p.messages[parentMsg].role, messages: [], readTools: p.readTools, model: p.model, effort: p.effort };
   $('#panel').classList.remove('closed');
   renderPanel();
   setTimeout(() => $('#input').focus(), 0);
@@ -728,7 +759,7 @@ function exportBranch(b) {
 function openBranch(id) {
   state.draft = null; state.open = id;
   $('#panel').classList.remove('closed');
-  renderThread(true); renderPanel();
+  refreshTwigs(); renderPanel();
   setTimeout(() => $('#input').focus(), 0);
 }
 function startDraft(anchor, selection) {
@@ -756,7 +787,7 @@ async function sendQuestion() {
   const draft = state.draft;
   const b = draft || state.branches.find((x) => x.id === state.open);
   if (!b) return;
-  const key = b.id || 'draft';
+  const key = b.id || (b._key ||= 'draft-' + Math.random().toString(36).slice(2));
   if (state.busy.has(key)) return;
   state.busy.add(key);
   input.value = ''; autosize();
@@ -773,7 +804,7 @@ async function sendQuestion() {
   const payload = !draft ? { session: state.session, question, readTools, model, effort, images }
     : b.parent ? { session: state.session, parent: b.parent, parentMsg: b.parentMsg, selection: b.selection, question, readTools, model, effort, images }
     : { session: state.session, anchor: b.anchor, selection: b.selection, question, readTools, model, effort, images };
-  let current = b, raf = 0, streamed = false;
+  let current = b, raf = 0, streamed = false, finished = false;
   const sess = state.session; // results for another session must not leak into the one now on screen
   const here = () => state.session === sess;
   const paint = () => { raf = 0; const box = $('#streamMsg'); if (here() && box && (state.open === current.id || state.draft === current)) { box.innerHTML = streamInner(current); const pb = $('#panelBody'); pb.scrollTop = pb.scrollHeight; } };
@@ -791,12 +822,12 @@ async function sendQuestion() {
         if (!line) continue;
         const ev = JSON.parse(line);
         if (!here()) continue; // keep draining the stream, but don't touch the current screen
-        if (ev.type === 'gone') { state.branches = state.branches.filter((x) => x.id !== ev.id); current = null; continue; }
+        if (ev.type === 'gone') { finished = true; state.branches = state.branches.filter((x) => x.id !== ev.id); current = null; continue; }
         if (ev.type === 'branch') {
           const nb = { ...ev.branch, _streaming: '', _tools: [] };
-          if (draft) { state.draft = null; state.open = nb.id; state.branches.push(nb); state.busy.delete('draft'); state.busy.add(nb.id); }
+          if (draft) { state.draft = null; state.open = nb.id; state.branches.push(nb); state.busy.delete(key); state.busy.add(nb.id); }
           else Object.assign(current, { sessionId: ev.branch.sessionId });
-          if (draft) { current = nb; renderThread(true); renderPanel(); }
+          if (draft) { current = nb; refreshRows([nb.anchor]); renderPanel(); }
         } else if (ev.type === 'delta') {
           current._streaming += ev.text;
           if (!raf) raf = requestAnimationFrame(paint);
@@ -804,6 +835,9 @@ async function sendQuestion() {
           (current._tools ||= []).push({ name: ev.name, detail: ev.detail });
           if (!raf) raf = requestAnimationFrame(paint);
         } else if (ev.type === 'done' || ev.type === 'error') {
+          finished = true;
+          // The stored message now points at saved files; free the local previews
+          for (const m of b.messages) for (const u of m.images || []) if (String(u).startsWith('blob:')) URL.revokeObjectURL(u);
           // Only update a branch that is still here (it may have been deleted meanwhile)
           const idx = state.branches.findIndex((x) => x.id === ev.branch.id);
           if (idx >= 0) state.branches[idx] = ev.branch;
@@ -811,6 +845,7 @@ async function sendQuestion() {
         }
       }
     }
+    if (!finished && here()) { toast(t('streamCut')); await resyncBranches(); }
   } catch (e) {
     if (!streamed && here()) {
       // The server stored nothing (409, network error...): undo the optimistic message so indexes stay
@@ -825,7 +860,7 @@ async function sendQuestion() {
     state.busy.delete(key); if (current && current.id) state.busy.delete(current.id);
     if (current) { delete current._streaming; delete current._tools; }
     delete b._streaming; delete b._tools;
-    if (here()) { renderThread(true); renderPanel(); }
+    if (here()) { refreshRows([b.anchor]); renderPanel(); }
   }
 }
 
@@ -878,7 +913,7 @@ function startRename() {
   const span = document.querySelector('#panelHead .btitle');
   if (!b || !span) return;
   const inp = document.createElement('input');
-  inp.className = 'rename'; inp.maxLength = 80; inp.value = b.title || ''; inp.placeholder = plain(defaultTitle(b)).slice(0, 80);
+  inp.className = 'rename'; inp.dataset.bid = b.id; inp.maxLength = 80; inp.value = b.title || ''; inp.placeholder = plain(defaultTitle(b)).slice(0, 80);
   inp.title = t('renameHint');
   span.parentElement.replaceWith(inp);
   inp.focus(); inp.select();
@@ -889,9 +924,11 @@ function startRename() {
     if (save && value !== (b.title || '')) {
       try {
         const r = await (await api('/api/branch/' + b.id, { method: 'PATCH', body: JSON.stringify({ session: state.session, title: value }) })).json();
-        if (r.title) b.title = r.title; else delete b.title;
+        const cur = state.branches.find((x) => x.id === b.id) || b; // a finished answer may have replaced the object
+        if (r.title) cur.title = r.title; else delete cur.title;
       } catch (err) { toast(String(err.message || err).slice(0, 160)); }
     }
+    inp.dataset.bid = ''; // rename finished: let renderPanel rebuild the header
     renderPanel();
   };
   inp.addEventListener('keydown', (e) => {
@@ -908,7 +945,7 @@ document.addEventListener('keydown', (e) => {
     if (document.querySelector('.modal-bg')) return; // the modal handles its own Esc
     if (pendingSel && fb.style.display !== 'none') { fb.style.display = 'none'; pendingSel = null; window.getSelection().removeAllRanges(); return; }
     if (typing) { document.activeElement.blur(); return; }
-    if (state.draft || state.open) { state.open = null; state.draft = null; renderThread(true); renderPanel(); }
+    if (state.draft || state.open) { state.open = null; state.draft = null; refreshTwigs(); renderPanel(); }
     return;
   }
   if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
@@ -930,7 +967,7 @@ document.addEventListener('click', async (e) => {
   const go = el.closest('[data-goto]');
   if (go) { gotoMsg(Number(go.dataset.goto)); return; }
   if (el.closest('[data-rename]')) { startRename(); return; }
-  if (el.closest('#backList')) { state.open = null; state.draft = null; renderThread(true); renderPanel(); return; }
+  if (el.closest('#backList')) { state.open = null; state.draft = null; refreshTwigs(); renderPanel(); return; }
   if (el.closest('#closePanel')) { $('#panel').classList.add('closed'); return; }
   if (el.closest('#delBranch')) {
     const b = state.branches.find((x) => x.id === state.open);
@@ -941,7 +978,7 @@ document.addEventListener('click', async (e) => {
     let grew = true;
     while (grew) { grew = false; for (const x of state.branches) if (x.parent && gone.has(x.parent) && !gone.has(x.id)) { gone.add(x.id); grew = true; } }
     state.branches = state.branches.filter((x) => !gone.has(x.id)); state.open = null;
-    renderThread(true); renderPanel(); return;
+    refreshRows([b.anchor]); renderPanel(); return; // only the anchor row loses its twig and highlight
   }
   if (el.closest('#exportBtn')) {
     const b = state.branches.find((x) => x.id === state.open);
@@ -952,9 +989,10 @@ document.addEventListener('click', async (e) => {
     const b = state.branches.find((x) => x.id === state.open);
     if (!b) return;
     const btn = el.closest('#noteBtn'); btn.disabled = true;
-    const m = showNote(b);
+    const ac = new AbortController();
+    const m = showNote(b, () => ac.abort());
     try {
-      const r = await api(`/api/branch/${b.id}/note`, { method: 'POST', body: JSON.stringify({ session: state.session }) });
+      const r = await api(`/api/branch/${b.id}/note`, { method: 'POST', signal: ac.signal, body: JSON.stringify({ session: state.session }) });
       const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '', text = '';
       for (;;) {
         const { value, done } = await reader.read();
@@ -977,9 +1015,10 @@ document.addEventListener('click', async (e) => {
     if (!b) return;
     const btn = el.closest('#summaryBtn'); btn.disabled = true;
     // Open the window right away and stream the summary into it
-    const m = showSummary();
+    const ac = new AbortController();
+    const m = showSummary(() => ac.abort());
     try {
-      const r = await api(`/api/branch/${b.id}/summary`, { method: 'POST', body: JSON.stringify({ session: state.session }) });
+      const r = await api(`/api/branch/${b.id}/summary`, { method: 'POST', signal: ac.signal, body: JSON.stringify({ session: state.session }) });
       const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '', text = '';
       for (;;) {
         const { value, done } = await reader.read();
@@ -1041,6 +1080,7 @@ async function toPayload(file) {
   }
   if (!blob || blob.size > 5e6) throw new Error(t('imageTooLarge'));
   const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+  if (bmp) bmp.close();
   return { media_type: type, data, url: URL.createObjectURL(blob) };
 }
 async function addImages(files) {
@@ -1077,7 +1117,7 @@ $('#send').addEventListener('click', sendQuestion);
 let searchT = 0;
 $('#search').addEventListener('input', () => {
   clearTimeout(searchT);
-  searchT = setTimeout(() => { renderThread(true); if (!state.open && !state.draft) renderPanel(); }, 150);
+  searchT = setTimeout(() => { applySearch(); if (!state.open && !state.draft) renderPanel(); }, 150);
 });
 /* ---------- model + effort picker, like Claude Code's /model: ↑↓ model, ←→ effort, Enter/Esc close ---------- */
 const pick = { model: '@main', effort: '' };
@@ -1179,14 +1219,14 @@ $('#readTools').addEventListener('change', (e) => {
 
 /* ---------- "Bring back" summary: review, edit, copy, paste into the main session ---------- */
 // Opens at once in a "writing" state; update() streams text in, finish() makes it editable, fail() shows the error.
-function showNote(b) {
+function showNote(b, onClose) {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
   bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="width:min(760px,100%)"><h3>${TWIG_ICO}${esc(t('noteHeading'))}</h3><p>${esc(t('noteHint'))}</p><textarea readonly style="min-height:340px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12.5px"></textarea><div class="row-btns"><button class="btn" data-folder style="margin-right:auto">${esc(t('openFolder'))}</button><button class="btn" data-x>${esc(t('close'))}</button><button class="btn primary" data-save disabled>${esc(t('saveNote'))}</button></div></div>`;
   const ta = bg.querySelector('textarea'), saveBtn = bg.querySelector('[data-save]'), hint = bg.querySelector('p');
   ta.placeholder = t('noteWriting');
   let closed = false, saved = false;
-  const close = () => { closed = true; bg.remove(); document.removeEventListener('keydown', onKey); };
+  const close = () => { closed = true; bg.remove(); document.removeEventListener('keydown', onKey); if (onClose) onClose(); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   bg.addEventListener('click', async (e) => {
     if (e.target === bg || e.target.closest('[data-x]')) return close();
@@ -1212,14 +1252,14 @@ function showNote(b) {
   };
 }
 
-function showSummary() {
+function showSummary(onClose) {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
   bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h3>${TWIG_ICO}${esc(t('summaryHeading'))}</h3><p>${esc(t('summaryHint'))}</p><textarea readonly></textarea><div class="row-btns"><button class="btn" data-x>${esc(t('close'))}</button><button class="btn primary" data-copy disabled>${esc(t('copy'))}</button></div></div>`;
   const ta = bg.querySelector('textarea'), copyBtn = bg.querySelector('[data-copy]'), hint = bg.querySelector('p');
   ta.placeholder = t('summarizing');
   let closed = false;
-  const close = () => { closed = true; bg.remove(); document.removeEventListener('keydown', onKey); };
+  const close = () => { closed = true; bg.remove(); document.removeEventListener('keydown', onKey); if (onClose) onClose(); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   bg.addEventListener('click', async (e) => {
     if (e.target === bg || e.target.closest('[data-x]')) return close();
