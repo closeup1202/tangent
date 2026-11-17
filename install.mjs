@@ -9,7 +9,11 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const MARK = 'tangent';
+// Marker written into the generated command file, so we only ever overwrite or remove our own file
+const MARK = '<!-- tangent:generated-command -->';
+// Files written by earlier versions have no marker; recognise them by their exact frontmatter line
+const LEGACY = 'description: Open this conversation in the browser and branch side-chats off selected text (tangent)';
+const isOurs = (f) => { const s = fs.readFileSync(f, 'utf8'); return s.includes(MARK) || s.includes(LEGACY); };
 const major = Number(process.versions.node.split('.')[0]);
 if (major < 18) { console.error(`Tangent needs Node 18 or later (found ${process.version}).`); process.exit(1); }
 
@@ -24,7 +28,7 @@ const args = process.argv.slice(2);
 
 if (args.includes('--uninstall')) {
   fs.rmSync(shim, { force: true });
-  if (fs.existsSync(cmdFile) && fs.readFileSync(cmdFile, 'utf8').includes(MARK)) fs.rmSync(cmdFile);
+  if (fs.existsSync(cmdFile) && isOurs(cmdFile)) fs.rmSync(cmdFile);
   if (args.includes('--purge')) fs.rmSync(base, { recursive: true, force: true });
   console.log('Uninstalled.' + (args.includes('--purge') ? '' : ` Branch data is kept in ${data}`));
   process.exit(0);
@@ -54,7 +58,7 @@ if (fs.existsSync(oldCmd) && fs.readFileSync(oldCmd, 'utf8').includes('cq-web'))
 fs.rmSync(path.join(home, '.claude', 'cq-web', 'launch.mjs'), { force: true });
 
 // 3. The /tg command. Back up any unrelated /tg command first.
-if (fs.existsSync(cmdFile) && !fs.readFileSync(cmdFile, 'utf8').includes(MARK)) {
+if (fs.existsSync(cmdFile) && !isOurs(cmdFile)) {
   fs.copyFileSync(cmdFile, cmdFile + '.bak');
   console.log(`Backed up the existing ${cmdFile} to .bak`);
 }
@@ -64,6 +68,7 @@ fs.writeFileSync(cmdFile, `---
 description: Open this conversation in the browser and branch side-chats off selected text (tangent)
 allowed-tools: Bash(node ${q} --launch:*)
 ---
+${MARK}
 
 !\`node ${q} --launch\`
 

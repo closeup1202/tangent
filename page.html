@@ -217,6 +217,8 @@ select.mini { height: 24px; padding: 0 6px; font-size: 12px; border-radius: 6px;
 .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 30; }
 .toast.on { opacity: .94; }
 
+/* The panel only collapses on narrow screens; on wide screens it is part of the layout, so no close button */
+@media (min-width: 981px) { #closePanel { display: none; } }
 @media (max-width: 980px) {
   .main { grid-template-columns: 1fr; }
   .panel { position: fixed; inset: auto 0 0 0; height: 62vh; border-left: 0; border-top: 1px solid var(--line); box-shadow: var(--shadow); z-index: 10; border-radius: 16px 16px 0 0; }
@@ -295,7 +297,6 @@ const I18N = {
   en: {
     search: 'Search conversation', session: 'Session', reload: 'Reload conversation', theme: 'Theme', language: 'Language',
     askPlaceholder: 'Ask about this part', send: 'Send (Enter)', keysHint: 'Enter to send', shortcuts: 'Enter send · Shift+Enter newline · B branch from selection · / search · Esc back',
-    noToolsHint: 'Claude answers here without tools (no file reads or commands)',
     toTerminal: 'Continue in terminal', toTerminalTitle: 'Continue this branch as a regular Claude Code session (tools available)',
     branch: 'Branch', branchMsg: 'Branch', branchMsgTitle: 'Branch from this whole message',
     you: 'You', noMessages: 'No messages to show.', noSessions: 'No Claude Code sessions found for this folder.',
@@ -322,7 +323,6 @@ const I18N = {
   ko: {
     search: '대화 검색', session: '세션', reload: '대화 다시 읽기', theme: '테마', language: '언어',
     askPlaceholder: '이 부분에 대해 물어보세요', send: '보내기 (Enter)', keysHint: 'Enter 보내기', shortcuts: 'Enter 보내기 · Shift+Enter 줄바꿈 · B 선택한 문장으로 가지 치기 · / 검색 · Esc 뒤로',
-    noToolsHint: '이 창의 Claude 는 파일 읽기·명령 실행 없이 답합니다',
     toTerminal: '터미널에서 이어가기', toTerminalTitle: '이 가지를 터미널 Claude 로 이어가기 (도구 사용 가능)',
     branch: '가지 치기', branchMsg: '가지', branchMsgTitle: '이 메시지 전체로 가지 치기',
     you: '나', noMessages: '표시할 메시지가 없습니다.', noSessions: '이 폴더에는 Claude Code 세션 기록이 없습니다.',
@@ -363,6 +363,7 @@ const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>
 function inline(s) {
   // Pull code spans out first (so bold can contain code), convert the rest, then put them back
   const codes = [];
+  s = s.replace(/\u0000/g, ''); // NUL is our placeholder marker; text containing it must not break rendering
   let t = esc(s.replace(/`([^`\n]+)`/g, (_, c) => '\u0000' + (codes.push(c) - 1) + '\u0000'));
   t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -446,7 +447,7 @@ function twigSvg(branches, openId) {
 }
 
 /* ---------- thread ---------- */
-function fmtTime(t) { if (!t) return ''; const d = new Date(t); return isNaN(d) ? '' : d.toLocaleString(LOCALE(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+function fmtTime(ts) { if (!ts) return ''; const d = new Date(ts); return isNaN(d) ? '' : d.toLocaleString(LOCALE(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 // Only top-level branches grow from the main thread; nested ones hang off their parent branch
 function branchesOf(i) { return state.branches.filter((b) => b.anchor === i && !b.parent); }
 function childrenOf(id) { return state.branches.filter((b) => b.parent === id); }
@@ -523,11 +524,12 @@ function applyThread(items) {
 async function pollLive() {
   if (live.busy || document.hidden || !state.session) return;
   live.busy = true;
+  const sess = state.session; // drop the result if the user switches session while this poll is in flight
   try {
-    const s = await (await api('/api/stat?session=' + encodeURIComponent(state.session))).json();
-    if (s.mtime !== live.mtime || s.size !== live.size) {
-      const data = await (await api('/api/thread?session=' + encodeURIComponent(state.session))).json();
-      if (applyThread(data.items)) { live.mtime = s.mtime; live.size = s.size; $('#sessionTitle').textContent = data.title || ''; }
+    const s = await (await api('/api/stat?session=' + encodeURIComponent(sess))).json();
+    if (sess === state.session && (s.mtime !== live.mtime || s.size !== live.size)) {
+      const data = await (await api('/api/thread?session=' + encodeURIComponent(sess))).json();
+      if (sess === state.session && applyThread(data.items)) { live.mtime = s.mtime; live.size = s.size; $('#sessionTitle').textContent = data.title || ''; }
     }
     $('#liveDot').classList.remove('off');
   } catch { $('#liveDot').classList.add('off'); }
@@ -548,7 +550,7 @@ async function loadSessions() {
   if (state.session && !sessions.some((s) => s.id === state.session)) sessions.unshift({ id: state.session, title: '' });
   $('#sessionSel').innerHTML = sessions.map((s) => {
     const d = s.mtime ? new Date(s.mtime).toLocaleString(LOCALE(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · ' : '';
-    return `<option value="${s.id}"${s.id === state.session ? ' selected' : ''}>${esc(d + (s.title || s.id.slice(0, 8)))}</option>`;
+    return `<option value="${esc(s.id)}"${s.id === state.session ? ' selected' : ''}>${esc(d + (s.title || s.id.slice(0, 8)))}</option>`;
   }).join('');
 }
 
@@ -717,10 +719,13 @@ async function sendQuestion() {
   const payload = !draft ? { session: state.session, question, readTools, model }
     : b.parent ? { session: state.session, parent: b.parent, parentMsg: b.parentMsg, selection: b.selection, question, readTools, model }
     : { session: state.session, anchor: b.anchor, selection: b.selection, question, readTools, model };
-  let current = b, raf = 0;
-  const paint = () => { raf = 0; const box = $('#streamMsg'); if (box && (state.open === current.id || state.draft === current)) { box.innerHTML = streamInner(current); const pb = $('#panelBody'); pb.scrollTop = pb.scrollHeight; } };
+  let current = b, raf = 0, streamed = false;
+  const sess = state.session; // results for another session must not leak into the one now on screen
+  const here = () => state.session === sess;
+  const paint = () => { raf = 0; const box = $('#streamMsg'); if (here() && box && (state.open === current.id || state.draft === current)) { box.innerHTML = streamInner(current); const pb = $('#panelBody'); pb.scrollTop = pb.scrollHeight; } };
   try {
     const r = await api(url, { method: 'POST', body: JSON.stringify(payload) });
+    streamed = true;
     const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
     for (;;) {
       const { value, done } = await reader.read();
@@ -731,6 +736,8 @@ async function sendQuestion() {
         const line = buf.slice(0, k); buf = buf.slice(k + 1);
         if (!line) continue;
         const ev = JSON.parse(line);
+        if (!here()) continue; // keep draining the stream, but don't touch the current screen
+        if (ev.type === 'gone') { state.branches = state.branches.filter((x) => x.id !== ev.id); current = null; continue; }
         if (ev.type === 'branch') {
           const nb = { ...ev.branch, _streaming: '', _tools: [] };
           if (draft) { state.draft = null; state.open = nb.id; state.branches.push(nb); state.busy.delete('draft'); state.busy.add(nb.id); }
@@ -743,19 +750,37 @@ async function sendQuestion() {
           (current._tools ||= []).push({ name: ev.name, detail: ev.detail });
           if (!raf) raf = requestAnimationFrame(paint);
         } else if (ev.type === 'done' || ev.type === 'error') {
+          // Only update a branch that is still here (it may have been deleted meanwhile)
           const idx = state.branches.findIndex((x) => x.id === ev.branch.id);
-          if (idx >= 0) state.branches[idx] = ev.branch; else state.branches.push(ev.branch);
-          current = ev.branch;
+          if (idx >= 0) state.branches[idx] = ev.branch;
+          current = idx >= 0 ? ev.branch : null;
         }
       }
     }
   } catch (e) {
-    if (current) { delete current._streaming; current.messages.push({ role: 'error', text: String(e.message || e) }); }
+    if (!streamed && here()) {
+      // The server stored nothing (409, network error...): undo the optimistic message so indexes stay
+      // in step with the server, and give the question back so it isn't lost
+      b.messages.pop();
+      if (!$('#input').value) { $('#input').value = question; autosize(); }
+    }
+    toast(String(e.message || e).slice(0, 160));
+    if (streamed && here()) await resyncBranches();
   } finally {
     state.busy.delete(key); if (current && current.id) state.busy.delete(current.id);
     if (current) { delete current._streaming; delete current._tools; }
-    renderThread(true); renderPanel();
+    delete b._streaming; delete b._tools;
+    if (here()) { renderThread(true); renderPanel(); }
   }
+}
+
+// Re-read branches from the server after an interrupted stream so the page matches what was stored
+async function resyncBranches() {
+  try {
+    const data = await (await api('/api/thread?session=' + encodeURIComponent(state.session))).json();
+    state.branches = data.branches;
+    if (state.open && !state.branches.some((x) => x.id === state.open)) state.open = null;
+  } catch {}
 }
 
 /* ---------- selection → Branch button ---------- */
@@ -802,9 +827,13 @@ document.addEventListener('keydown', (e) => {
     if (state.draft || state.open) { state.open = null; state.draft = null; renderThread(true); renderPanel(); }
     return;
   }
-  if (typing || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
-  if ((e.key === 'b' || e.key === 'B') && pendingSel) { e.preventDefault(); fb.click(); }
-  else if (e.key === '/') { e.preventDefault(); $('#search').focus(); }
+  if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  // B branches from a text selection in the page even if the question box still has focus
+  // (text selected inside an input never shows up in getSelection(), so typing a "b" there is unaffected)
+  const pageSel = pendingSel && window.getSelection().toString().trim() === pendingSel.text;
+  if ((e.key === 'b' || e.key === 'B') && pageSel) { e.preventDefault(); fb.click(); return; }
+  if (typing) return;
+  if (e.key === '/') { e.preventDefault(); $('#search').focus(); }
 });
 
 /* ---------- click delegation ---------- */
@@ -821,7 +850,8 @@ document.addEventListener('click', async (e) => {
   if (el.closest('#delBranch')) {
     const b = state.branches.find((x) => x.id === state.open);
     if (!b || !confirm(t('confirmDelete'))) return;
-    await api(`/api/branch/${b.id}?session=${encodeURIComponent(state.session)}`, { method: 'DELETE' });
+    try { await api(`/api/branch/${b.id}?session=${encodeURIComponent(state.session)}`, { method: 'DELETE' }); }
+    catch (err) { toast(String(err.message || err).slice(0, 160)); return; }
     const gone = new Set([b.id]);
     let grew = true;
     while (grew) { grew = false; for (const x of state.branches) if (x.parent && gone.has(x.parent) && !gone.has(x.id)) { gone.add(x.id); grew = true; } }

@@ -4,7 +4,8 @@
 //   node server.mjs --serve  ...                                          the server itself (spawned by --launch)
 //
 // Security: binds to 127.0.0.1 only, random token per launch, Host/Origin checks. The session log is only read, never written.
-// Branch chats run as `claude -p --tools ""` (no tools). For tools, use "Continue in terminal".
+// Branch chats run as `claude -p` with no tools, or read-only Read/Grep/Glob when "Read files" is on.
+// Edits and commands are never available in a branch; for those, use "Continue in terminal".
 // Supports Windows and macOS. On Linux, opening a terminal works if x-terminal-emulator exists.
 
 import http from 'node:http';
@@ -91,8 +92,10 @@ function openTerminal(sessionId) {
     detached('osascript', ['-e', `tell application "Terminal" to do script "${as}"`, '-e', 'tell application "Terminal" to activate']);
     return { opened: true, command };
   }
-  detached('x-terminal-emulator', ['-e', 'bash', '-lc', `${command}; exec bash`]);
-  return { opened: false, command };
+  // Linux: only claim success when a terminal launcher actually exists on PATH
+  const term = (process.env.PATH || '').split(path.delimiter).some((d) => d && fs.existsSync(path.join(d, 'x-terminal-emulator')));
+  if (term) detached('x-terminal-emulator', ['-e', 'bash', '-lc', `${command}; exec bash`]);
+  return { opened: term, command };
 }
 
 // Find the claude binary. An npm install on Windows gives claude.cmd, which must run through the shell.
@@ -241,7 +244,10 @@ function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = fals
       while ((i = buf.indexOf('\n')) >= 0) {
         const line = buf.slice(0, i); buf = buf.slice(i + 1);
         let o; try { o = JSON.parse(line); } catch { continue; }
-        if (o.session_id && !fork) sessionId = o.session_id;
+        if (o.session_id && !fork && o.session_id !== sessionId) {
+          sessionId = o.session_id;
+          onEvent({ type: 'session', id: sessionId }); // lets the caller record it before the answer finishes
+        }
         if (o.type === 'stream_event' && o.event?.type === 'message_start' && text && !text.endsWith('\n\n')) {
           // A new model turn after a tool call: keep its text visually separate
           const sep = text.endsWith('\n') ? '\n' : '\n\n';
@@ -270,6 +276,9 @@ function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = fals
       const final = (text.trim() ? text.trim() : '') || (result && typeof result.result === 'string' && result.result) || '';
       resolve({ sessionId, text: final, tools, error: isErr ? (result?.result || err.trim() || `claude exited with code ${code}`).slice(0, 2000) : null });
     });
+    // If claude exits before reading stdin (bad flag, not logged in, missing binary), writing raises EPIPE.
+    // Without a handler that would crash the whole server; the 'close' handler reports the failure instead.
+    p.stdin.on('error', () => {});
     p.stdin.end(prompt, 'utf8');
   });
 }
@@ -336,6 +345,7 @@ function serve() {
   let port = 0;
   let lastSeen = Date.now();
   const pending = new Set(); // branch ids currently streaming
+  const deleted = new Set(); // branch ids deleted while this server runs (a finishing answer must not bring them back)
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -379,6 +389,7 @@ function serve() {
 
         if (req.method === 'DELETE' && bid) {
           const gone = withDescendants(store.branches, bid);
+          for (const id of gone) deleted.add(id);
           store.branches = store.branches.filter((b) => !gone.has(b.id));
           saveStore(sid, store);
           return json(res, { ok: true });
@@ -391,7 +402,8 @@ function serve() {
         if (req.method === 'POST' && bid && action === 'summary') {
           const b = store.branches.find((x) => x.id === bid);
           if (!b?.sessionId) return send(res, 400, 'This branch has no conversation yet.');
-          const r = await runClaude({ prompt: SUMMARY_PROMPT, resumeId: b.sessionId, fork: true });
+          if (pending.has(b.id)) return send(res, 409, 'This branch is still answering.');
+          const r = await runClaude({ prompt: SUMMARY_PROMPT, resumeId: b.sessionId, fork: true, model: b.model || '' });
           if (r.error) return send(res, 502, r.error);
           return json(res, { summary: r.text });
         }
@@ -436,14 +448,23 @@ function serve() {
 
           pending.add(b.id);
           res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' });
-          const out = (o) => res.write(JSON.stringify(o) + '\n');
-          out({ type: 'branch', branch: b });
+          const send_ = (o) => res.write(JSON.stringify(o) + '\n');
+          const out = (o) => {
+            if (o.type !== 'session') return send_(o);
+            // Record the branch's own session id as soon as it is known, so /tg and the session
+            // list never mistake a branch that is still answering for a main conversation
+            const s = loadStore(sid);
+            const x = s.branches.find((y) => y.id === b.id);
+            if (x && !x.sessionId) { x.sessionId = o.id; saveStore(sid, s); }
+          };
+          send_({ type: 'branch', branch: b });
           // Session name shown in /resume. It may pass through a shell, so strip risky characters
           const name = ('tangent: ' + (b.selection || b.anchorPreview).replace(/\s+/g, ' ')).replace(/["'`$%!^&|<>\\]/g, '').slice(0, 34);
           const r = await runClaude({ prompt: question, resumeId: b.sessionId, ctx: ctxFile(b.id), name, readTools: !!b.readTools, model: b.model || '' }, out);
           pending.delete(b.id);
           const fresh = loadStore(sid);
           let fb = fresh.branches.find((x) => x.id === b.id);
+          if (!fb && deleted.has(b.id)) { send_({ type: 'gone', id: b.id }); return res.end(); } // deleted while answering
           if (!fb) { fb = b; fresh.branches.push(fb); }
           if (r.sessionId) fb.sessionId = r.sessionId;
           fb.readTools = !!b.readTools;
@@ -452,7 +473,7 @@ function serve() {
           if (r.tools.length) msg.tools = r.tools;
           fb.messages.push(msg);
           saveStore(sid, fresh);
-          out(r.error ? { type: 'error', error: r.error, branch: fb } : { type: 'done', branch: fb });
+          send_(r.error ? { type: 'error', error: r.error, branch: fb } : { type: 'done', branch: fb });
           return res.end();
         }
       }
