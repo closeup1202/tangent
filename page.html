@@ -934,7 +934,7 @@ document.addEventListener('click', async (e) => {
     if (!b) return;
     try {
       const r = await (await api(`/api/branch/${b.id}/terminal`, { method: 'POST', body: JSON.stringify({ session: state.session }) })).json();
-      if (r.opened) toast(t('terminalOpened'));
+      if (r.opened) toast(t('terminalOpened') + (r.via ? ' (' + r.via + ')' : ''));
       else {
         try { await navigator.clipboard.writeText(r.command); toast(t('terminalCopied')); }
         catch { prompt(t('terminalPrompt'), r.command); }

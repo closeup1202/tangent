@@ -6,14 +6,14 @@
 // Security: binds to 127.0.0.1 only, random token per launch, Host/Origin checks. The session log is only read, never written.
 // Branch chats run as `claude -p` with no tools, or read-only Read/Grep/Glob when "Read files" is on.
 // Edits and commands are never available in a branch; for those, use "Continue in terminal".
-// Supports Windows and macOS. On Linux, opening a terminal works if x-terminal-emulator exists.
+// Supports Windows and macOS (Linux: browser yes; terminal via herdr/tmux/WezTerm or x-terminal-emulator).
 
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const IS_WIN = process.platform === 'win32';
@@ -78,26 +78,86 @@ function openUrl(url) {
 
 const shQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
+const onPath = (name) => (process.env.PATH || '').split(path.delimiter).some((d) => d && (fs.existsSync(path.join(d, name)) || (IS_WIN && fs.existsSync(path.join(d, name + '.exe')))));
+// Run a short command and wait for it (used for multiplexers that answer right away)
+function runSync(cmd, args) {
+  const r = spawnSync(cmd, args, { cwd: CWD, encoding: 'utf8', timeout: 8000, windowsHide: true });
+  if (r.error || r.status !== 0) throw new Error((r.stderr || String(r.error || '')).trim().slice(0, 300) || `${cmd} exited with ${r.status}`);
+  return r.stdout;
+}
+
 // Continue a branch session as a regular Claude Code session (with tools) in a terminal.
-// If no terminal can be opened, return the command for the user to paste.
+// The server inherits the environment of the terminal that ran /tg, so we try to open the
+// session *there* first (a herdr pane, a tmux window, a new tab/window of the same app) and
+// fall back to the OS default terminal. If nothing can be opened, return the command to paste.
+// TANGENT_TERMINAL overrides everything: a shell command template with {cwd} and {cmd} placeholders,
+// e.g. TANGENT_TERMINAL='open -na Ghostty.app --args --working-directory={cwd} -e {cmd}'.
 function openTerminal(sessionId) {
   const id = sessionId.replace(/[^0-9a-f-]/gi, '');
-  if (IS_WIN) {
-    const cmd = `claude -r '${id}'`;
-    const enc = Buffer.from(cmd, 'utf16le').toString('base64');
-    detached('cmd', ['/c', 'start', '', 'powershell', '-NoExit', '-EncodedCommand', enc], { cwd: CWD });
-    return { opened: true, command: `cd "${CWD}"; ${cmd}` };
+  const claudeCmd = `claude -r ${id}`;
+  const command = IS_WIN ? `cd "${CWD}"; claude -r '${id}'` : `cd ${shQuote(CWD)} && ${claudeCmd}`;
+  const env = process.env;
+  const tried = [];
+  const attempt = (via, fn) => { try { fn(); return { opened: true, via, command }; } catch (e) { tried.push(`${via}: ${e.message}`); return null; } };
+  let r;
+
+  if (env.TANGENT_TERMINAL) {
+    const line = env.TANGENT_TERMINAL.replaceAll('{cwd}', IS_WIN ? `"${CWD}"` : shQuote(CWD)).replaceAll('{cmd}', IS_WIN ? claudeCmd : shQuote(claudeCmd));
+    r = attempt('TANGENT_TERMINAL', () => (IS_WIN ? detached('cmd', ['/c', line], { cwd: CWD }) : detached('/bin/sh', ['-c', line], { cwd: CWD })));
+    if (r) return r;
   }
-  const command = `cd ${shQuote(CWD)} && claude -r ${id}`;
+  // herdr: split the pane that ran /tg and run the session in the new pane
+  if (env.HERDR_PANE_ID) {
+    const bin = env.HERDR_BIN_PATH && fs.existsSync(env.HERDR_BIN_PATH) && !fs.statSync(env.HERDR_BIN_PATH).isDirectory() ? env.HERDR_BIN_PATH : 'herdr';
+    r = attempt('herdr', () => {
+      const out = JSON.parse(runSync(bin, ['pane', 'split', '--current', '--direction', 'right', '--cwd', CWD, '--focus']));
+      const pane = out?.result?.pane?.pane_id;
+      if (!pane) throw new Error('no pane id in herdr response');
+      runSync(bin, ['pane', 'run', String(pane), claudeCmd]);
+    });
+    if (r) return r;
+  }
+  // tmux: a new window in the same tmux session
+  if (env.TMUX) {
+    r = attempt('tmux', () => runSync('tmux', ['new-window', '-c', CWD, claudeCmd]));
+    if (r) return r;
+  }
+  // WezTerm: a new tab in the same window
+  if (env.WEZTERM_PANE) {
+    r = attempt('wezterm', () => runSync('wezterm', ['cli', 'spawn', '--cwd', CWD, '--', ...claudeCmd.split(' ')]));
+    if (r) return r;
+  }
+  if (IS_WIN) {
+    const enc = Buffer.from(`claude -r '${id}'`, 'utf16le').toString('base64');
+    // Windows Terminal: a new tab in the current window
+    if (env.WT_SESSION && onPath('wt')) {
+      r = attempt('windows-terminal', () => detached('wt', ['-w', '0', 'new-tab', '-d', CWD, 'powershell', '-NoExit', '-EncodedCommand', enc]));
+      if (r) return r;
+    }
+    detached('cmd', ['/c', 'start', '', 'powershell', '-NoExit', '-EncodedCommand', enc], { cwd: CWD });
+    return { opened: true, via: 'powershell', command };
+  }
   if (IS_MAC) {
+    const shell = env.SHELL || '/bin/zsh';
+    const app = env.TERM_PROGRAM || '';
+    // Ghostty: a new window (Ghostty asks for confirmation each time a window is opened with -e)
+    if (/ghostty/i.test(app)) {
+      r = attempt('ghostty', () => detached('open', ['-na', 'Ghostty.app', '--args', '-e', shell, '-lc', `${command}; exec ${shell} -l`]));
+      if (r) return r;
+    }
     const as = command.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    // iTerm2: a new window with the default profile
+    if (app === 'iTerm.app') {
+      r = attempt('iterm', () => detached('osascript', ['-e', 'tell application "iTerm2"', '-e', 'set w to (create window with default profile)', '-e', `tell current session of w to write text "${as}"`, '-e', 'activate', '-e', 'end tell']));
+      if (r) return r;
+    }
     detached('osascript', ['-e', `tell application "Terminal" to do script "${as}"`, '-e', 'tell application "Terminal" to activate']);
-    return { opened: true, command };
+    return { opened: true, via: 'terminal-app', command };
   }
   // Linux: only claim success when a terminal launcher actually exists on PATH
-  const term = (process.env.PATH || '').split(path.delimiter).some((d) => d && fs.existsSync(path.join(d, 'x-terminal-emulator')));
+  const term = onPath('x-terminal-emulator');
   if (term) detached('x-terminal-emulator', ['-e', 'bash', '-lc', `${command}; exec bash`]);
-  return { opened: term, command };
+  return { opened: term, via: term ? 'x-terminal-emulator' : null, command, tried };
 }
 
 // Find the claude binary. An npm install on Windows gives claude.cmd, which must run through the shell.

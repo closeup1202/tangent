@@ -25,7 +25,7 @@ Tangent opens your current session in the browser. Highlight any sentence, click
 - **Export.** Save any branch as a Markdown file.
 - **Search branches too.** The search box filters the main thread and lists the branches whose content matches.
 - **Keyboard.** `B` branches from the current selection, `/` focuses search, `Esc` goes back.
-- **Continue in the terminal.** When you need edits or shell commands, one click reopens the same branch as a regular Claude Code session (`claude -r <branch>`).
+- **Continue in the terminal.** When you need edits or shell commands, one click reopens the same branch as a regular Claude Code session (`claude -r <branch>`), in the terminal you ran `/tg` from where possible: a new pane in **herdr**, a new window in **tmux**, a new tab in **WezTerm** or **Windows Terminal**, a new **Ghostty** or **iTerm2** window; otherwise the default terminal. Set `TANGENT_TERMINAL` to use your own command, e.g. `TANGENT_TERMINAL='open -na Ghostty.app --args --working-directory={cwd} -e {cmd}'`.
 - **Also included:** search, a session switcher, light and dark themes, and an English/Korean UI (follows your browser language).
 
 ## How it differs from built-in commands
