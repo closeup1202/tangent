@@ -30,7 +30,18 @@ const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT,
 
 const argv = process.argv.slice(2);
 const opt = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
-const CWD = path.resolve(opt('--cwd') || process.cwd());
+// Claude Code names a project's session folder after the cwd. With a symlinked folder (macOS /var ->
+// /private/var, or ~/code -> /Volumes/...) Node's process.cwd() gives the real path while the shell's PWD
+// keeps the linked one, so try each spelling of the same folder and use the one that has sessions.
+function pickCwd(given) {
+  const real = (p) => { try { return fs.realpathSync(p); } catch { return null; } };
+  const base = path.resolve(given || process.cwd());
+  const target = real(base);
+  const pwd = process.env.PWD && real(process.env.PWD) === target ? path.resolve(process.env.PWD) : null;
+  const candidates = [...new Set([base, pwd, target].filter(Boolean))];
+  return candidates.find((c) => fs.existsSync(path.join(PROJ, c.replace(/[^A-Za-z0-9]/g, '-')))) || base;
+}
+const CWD = pickCwd(opt('--cwd'));
 // Claude Code stores sessions in a folder named after the cwd with every non-alphanumeric character replaced by '-'
 const projDir = path.join(PROJ, CWD.replace(/[^A-Za-z0-9]/g, '-'));
 fs.mkdirSync(path.join(DATA, 'ctx'), { recursive: true });

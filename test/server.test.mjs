@@ -32,7 +32,9 @@ test('/tg opens the session it was typed in and reuses the running server', asyn
   const older = writeSession(sb, [line.title('Older'), line.user('a')]);
   await sleep(30);
   writeSession(sb, [line.title('Newer'), line.user('b')]);
-  const env = { ...sb.env, CLAUDE_CODE_SESSION_ID: older };
+  // PWD as a shell sets it: on macOS the temp folder is a symlink (/var -> /private/var) and process.cwd()
+  // returns the real path, so this also checks that sessions are found under the linked spelling
+  const env = { ...sb.env, CLAUDE_CODE_SESSION_ID: older, PWD: sb.proj };
   const launch = () => execFileSync(process.execPath, [SERVER, '--launch'], { cwd: sb.proj, env }).toString();
   const first = launch();
   const runFile = fs.readdirSync(sb.data).find((f) => f.startsWith('run-'));
@@ -44,4 +46,27 @@ test('/tg opens the session it was typed in and reuses the running server', asyn
   assert.equal(second.match(/127\.0\.0\.1:(\d+)/)[1], first.match(/127\.0\.0\.1:(\d+)/)[1], 'second /tg should reuse the server');
   assert.equal(fs.readdirSync(sb.data).filter((f) => f.startsWith('run-')).length, 1);
   await stopServer(); // before the sandbox is removed (Windows cannot delete a folder a process runs in)
+});
+
+test('a project opened through a symlinked folder finds its sessions', async (t) => {
+  const sb = sandbox(); t.after(sb.cleanup);
+  // The user works in "link" -> real folder; Claude Code keeps the session under the linked spelling
+  const real = path.join(sb.base, 'real project');
+  fs.mkdirSync(real);
+  const link = path.join(sb.base, 'linked project');
+  fs.symlinkSync(real, link, process.platform === 'win32' ? 'junction' : 'dir');
+  const linkedDir = path.join(sb.config, 'projects', link.replace(/[^A-Za-z0-9]/g, '-'));
+  fs.mkdirSync(linkedDir, { recursive: true });
+  const sid = '11111111-2222-4333-8444-555555555555';
+  fs.writeFileSync(path.join(linkedDir, sid + '.jsonl'), JSON.stringify(line.user('from the linked folder')) + '\n');
+  const env = { ...sb.env, CLAUDE_CODE_SESSION_ID: sid, PWD: link };
+  execFileSync(process.execPath, [SERVER, '--launch'], { cwd: link, env });
+  const run = JSON.parse(fs.readFileSync(path.join(sb.data, fs.readdirSync(sb.data).find((f) => f.startsWith('run-'))), 'utf8'));
+  try {
+    const html = await (await fetch(`http://127.0.0.1:${run.port}/?t=${run.token}`)).text();
+    assert.equal(JSON.parse(html.match(/const BOOT = (\{.*?\});/)[1]).session, sid);
+  } finally {
+    try { process.kill(run.pid); } catch {}
+    for (let i = 0; i < 50 && isAlive(run.pid); i++) await sleep(100);
+  }
 });
