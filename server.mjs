@@ -70,6 +70,12 @@ function detached(cmd, args, extra = {}) {
   return p;
 }
 
+function openFolder(dir) {
+  if (IS_WIN) detached('explorer', [dir]);
+  else if (IS_MAC) detached('open', [dir]);
+  else detached('xdg-open', [dir]);
+}
+
 function openUrl(url) {
   if (IS_WIN) detached('cmd', ['/c', 'start', '', url]);
   else if (IS_MAC) detached('open', [url]);
@@ -445,6 +451,40 @@ function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = fals
   });
 }
 
+// ---------------------------------------------------------------- study notes
+// Where "Save as note" writes Markdown files. TANGENT_NOTES_DIR overrides.
+function notesDir() {
+  if (process.env.TANGENT_NOTES_DIR) return path.resolve(process.env.TANGENT_NOTES_DIR);
+  const docs = path.join(HOME, 'Documents');
+  return path.join(fs.existsSync(docs) ? docs : HOME, 'Tangent Notes');
+}
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const notePrompt = (sessionTitle) => [
+  'Write a standalone study note in Markdown about what the user learned in this side discussion,',
+  'so they can keep it in their personal notes and understand it months later without this conversation.',
+  'Rules:',
+  "- Write in the language the user used in this discussion.",
+  `- Start with YAML front matter: title, date (${today()}), tags (3-6 short lowercase keywords), source: "Tangent"${sessionTitle ? `, context: "${String(sessionTitle).replace(/"/g, "'")}"` : ''}.`,
+  '- Then "# <title>", a short summary paragraph, and "##" sections for: key points (bullets), an example (code or a concrete case, if it helps),',
+  '  pitfalls (only if there are real ones) and related terms worth looking up next.',
+  '- Write the section headings in the same language as the note (for a Korean note: 핵심 정리, 예시, 주의할 점, 관련 개념).',
+  '- Explain things directly. Never write "as discussed above" or refer to "this conversation".',
+  '- Keep it concise, about 150-400 words. Output only the Markdown, no preamble.',
+].join('\n');
+// File name from the note title: date-title.md, safe on every OS, never overwrites
+function saveNote(content) {
+  const dir = notesDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const fm = content.match(/^---[\s\S]*?\ntitle:\s*["']?(.+?)["']?\s*\n/);
+  const h1 = content.match(/^#\s+(.+)$/m);
+  const title = (fm?.[1] || h1?.[1] || 'note').trim();
+  const slug = title.replace(/[\\/:*?"<>|#^[\]\x00-\x1f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80).replace(/\s/g, '-') || 'note';
+  let file = path.join(dir, `${today()}-${slug}.md`);
+  for (let k = 2; fs.existsSync(file); k++) file = path.join(dir, `${today()}-${slug}-${k}.md`);
+  fs.writeFileSync(file, content.endsWith('\n') ? content : content + '\n', 'utf8');
+  return file;
+}
+
 const SUMMARY_PROMPT = [
   'Summarize this side discussion so the user can paste it back into their main Claude Code conversation.',
   'Output only the note, written in the language the user used in this discussion.',
@@ -536,6 +576,8 @@ function serve() {
 
       if (req.method === 'POST' && u.pathname === '/api/ping') return json(res, { ok: true });
       if (req.method === 'GET' && u.pathname === '/api/sessions') return json(res, { sessions: listSessions() });
+      if (req.method === 'POST' && u.pathname === '/api/notes/open') { const d = notesDir(); fs.mkdirSync(d, { recursive: true }); openFolder(d); return json(res, { ok: true, dir: d }); }
+      if (req.method === 'GET' && u.pathname === '/api/notes/dir') return json(res, { dir: notesDir() });
       if (req.method === 'GET' && u.pathname === '/api/models') return json(res, { models: await listModels(), efforts: EFFORTS });
       if (req.method === 'GET' && u.pathname === '/api/stat') {
         // Cheap change check for live refresh: the page polls this and reloads the thread when it changes
@@ -550,7 +592,7 @@ function serve() {
         return json(res, { session: sid, title: sessionTitle(path.join(projDir, sid + '.jsonl')), items, branches: loadStore(sid).branches, mainSpec: mainSpec(sid) });
       }
 
-      const m = u.pathname.match(/^\/api\/branch(?:\/([a-z0-9]+))?(?:\/(ask|terminal|summary))?$/);
+      const m = u.pathname.match(/^\/api\/branch(?:\/([a-z0-9]+))?(?:\/(ask|terminal|summary|note|note-save))?$/);
       if (m) {
         const body = req.method === 'GET' ? {} : await readBody(req, 40e6);
         const sid = body.session || u.searchParams.get('session');
@@ -578,6 +620,30 @@ function serve() {
           const b = store.branches.find((x) => x.id === bid);
           if (!b?.sessionId) return send(res, 400, 'This branch has no conversation yet.');
           return json(res, { ok: true, ...openTerminal(b.sessionId) });
+        }
+        if (req.method === 'POST' && bid && action === 'note') {
+          // Stream a study note written from the branch (on a throwaway fork, so the branch stays clean)
+          const b = store.branches.find((x) => x.id === bid);
+          if (!b?.sessionId) return send(res, 400, 'This branch has no conversation yet.');
+          if (pending.has(b.id)) return send(res, 409, 'This branch is still answering.');
+          let model = b.model || '', effort = b.effort || '';
+          if (model === '@main') { const ms = mainSpec(sid); model = ms.model; effort = effort || ms.effort; }
+          res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' });
+          const send_ = (o) => res.write(JSON.stringify(o) + '\n');
+          const title = sessionTitle(path.join(projDir, sid + '.jsonl'));
+          const r = await runClaude({ prompt: notePrompt(title), resumeId: b.sessionId, fork: true, model, effort }, (o) => { if (o.type === 'delta') send_(o); });
+          send_(r.error ? { type: 'error', error: r.error } : { type: 'done', note: r.text, dir: notesDir() });
+          return res.end();
+        }
+        if (req.method === 'POST' && bid && action === 'note-save') {
+          const b = store.branches.find((x) => x.id === bid);
+          if (!b) return send(res, 404, 'Branch not found.');
+          const content = String(body.content || '').trim();
+          if (!content) return send(res, 400, 'Empty note.');
+          const file = saveNote(content.slice(0, 200000));
+          (b.notes ||= []).push({ file, time: new Date().toISOString() });
+          saveStore(sid, store);
+          return json(res, { ok: true, file, dir: notesDir() });
         }
         if (req.method === 'POST' && bid && action === 'summary') {
           const b = store.branches.find((x) => x.id === bid);

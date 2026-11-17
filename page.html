@@ -353,6 +353,7 @@ const I18N = {
     summarizing: 'Summarizing this branch…', summaryFailed: 'Could not summarize: ',
     summaryHeading: 'Bring this branch back', summaryHint: 'Edit if you like, copy it, then paste it into your main Claude Code session.',
     copy: 'Copy', copied: 'Copied. Paste it into your main session.',
+    note: 'Note', noteTitle: 'Write a study note from this branch and save it as Markdown on your PC', noteHeading: 'Study note', noteHint: 'Claude writes a note you can keep. Edit it if you like, then save.', noteWhere: 'Saved to: ', noteWriting: 'Writing the note…', saveNote: 'Save', noteSaved: 'Note saved', noteSavedAt: 'Saved: ', openFolder: 'Open notes folder', noteFailed: 'Could not write the note: ',
     renameTitle: 'Click to rename this branch', renameHint: 'Enter to save · Esc to cancel · leave empty to use the first question', versionTitle: 'Tangent on GitHub',
     modelTitle: 'Model and effort for this branch', sameAsMain: 'Same as main conversation', mainShort: 'Main', cliDefault: 'Default (Claude Code setting)', fastest: 'fastest', effortAuto: 'auto', noEffort: 'This model has no effort setting', modelsLoading: 'Checking which models your Claude Code offers…', pickerKeys: '↑↓ model · ←→ effort · Enter / Esc close',
     exportTitle: 'Export this branch as Markdown', openParent: 'Open the branch this one grew from',
@@ -381,6 +382,7 @@ const I18N = {
     summarizing: '가지를 요약하는 중…', summaryFailed: '요약하지 못했습니다: ',
     summaryHeading: '가지 내용을 본 대화로 가져가기', summaryHint: '필요하면 고친 뒤 복사해서, 원래 Claude Code 대화에 붙여 넣으세요.',
     copy: '복사', copied: '복사했습니다. 원래 대화에 붙여 넣으세요.',
+    note: '노트', noteTitle: '이 가지에서 배운 내용을 공부 노트로 정리해 PC 에 마크다운으로 저장', noteHeading: '공부 노트', noteHint: 'Claude 가 나중에 봐도 이해되는 노트를 씁니다. 필요하면 고친 뒤 저장하세요.', noteWhere: '저장 위치: ', noteWriting: '노트를 쓰는 중…', saveNote: '저장', noteSaved: '노트를 저장했습니다', noteSavedAt: '저장됨: ', openFolder: '노트 폴더 열기', noteFailed: '노트를 만들지 못했습니다: ',
     renameTitle: '눌러서 가지 이름 바꾸기', renameHint: 'Enter 저장 · Esc 취소 · 비우면 첫 질문으로 돌아감', versionTitle: 'GitHub 에서 Tangent 보기',
     modelTitle: '이 가지의 모델과 effort', sameAsMain: '본 대화와 같게', mainShort: '본 대화', cliDefault: '기본값 (Claude Code 설정)', fastest: '가장 빠름', effortAuto: '자동', noEffort: '이 모델은 effort 설정이 없습니다', modelsLoading: '사용 가능한 모델을 확인하는 중…', pickerKeys: '↑↓ 모델 · ←→ effort · Enter / Esc 닫기',
     exportTitle: '이 가지를 마크다운으로 저장', openParent: '이 가지가 뻗어 나온 가지 열기',
@@ -653,8 +655,9 @@ function renderPanel() {
   }
   panel.classList.remove('closed');
   const title = branchTitle(b);
+  const noteBtn = b.sessionId && !state.draft ? '<button class="icon-btn" id="noteBtn" title="' + t('noteTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/></svg><span style="font-size:12px">' + t('note') + '</span></button>' : '';
   const exportBtn = b.id && b.messages.length && !state.draft ? '<button class="icon-btn" id="exportBtn" title="' + t('exportTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 19h14"/></svg></button>' : '';
-  head.innerHTML = `<button class="icon-btn" id="backList" title="${t('back')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${TWIG_ICO}<span class="btitle"${b.id && !state.draft ? ' data-rename title="' + t('renameTitle') + '"' : ''}>${esc(title)}</span></h2>${exportBtn}${b.sessionId && !state.draft ? '<button class="icon-btn" id="summaryBtn" title="' + t('summaryTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6v3H9z"/><path d="M8 5H6v15h12V5h-2"/><path d="M9 12h6M9 16h4"/></svg><span style="font-size:12px">' + t('summary') + '</span></button>' : ''}${b.id && !state.draft ? '<button class="icon-btn" id="delBranch" title="' + t('deleteBranch') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button>' : ''}`;
+  head.innerHTML = `<button class="icon-btn" id="backList" title="${t('back')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${TWIG_ICO}<span class="btitle"${b.id && !state.draft ? ' data-rename title="' + t('renameTitle') + '"' : ''}>${esc(title)}</span></h2>${noteBtn}${exportBtn}${b.sessionId && !state.draft ? '<button class="icon-btn" id="summaryBtn" title="' + t('summaryTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6v3H9z"/><path d="M8 5H6v15h12V5h-2"/><path d="M9 12h6M9 16h4"/></svg><span style="font-size:12px">' + t('summary') + '</span></button>' : ''}${b.id && !state.draft ? '<button class="icon-btn" id="delBranch" title="' + t('deleteBranch') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button>' : ''}`;
   let html = anchorQuote(b);
   b.messages.forEach((m, k) => {
     // data-m lets a selection inside a branch message start a nested branch
@@ -940,6 +943,30 @@ document.addEventListener('click', async (e) => {
     if (b) exportBranch(b);
     return;
   }
+  if (el.closest('#noteBtn')) {
+    const b = state.branches.find((x) => x.id === state.open);
+    if (!b) return;
+    const btn = el.closest('#noteBtn'); btn.disabled = true;
+    const m = showNote(b);
+    try {
+      const r = await api(`/api/branch/${b.id}/note`, { method: 'POST', body: JSON.stringify({ session: state.session }) });
+      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '', text = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let k;
+        while ((k = buf.indexOf('\n')) >= 0) {
+          const ev = JSON.parse(buf.slice(0, k)); buf = buf.slice(k + 1);
+          if (ev.type === 'delta') { text += ev.text; m.update(text); }
+          else if (ev.type === 'done') m.finish(ev.note || text, ev.dir);
+          else if (ev.type === 'error') m.fail(ev.error);
+        }
+      }
+    } catch (err) { m.fail(String(err.message || err)); }
+    finally { btn.disabled = false; }
+    return;
+  }
   if (el.closest('#summaryBtn')) {
     const b = state.branches.find((x) => x.id === state.open);
     if (!b) return;
@@ -1146,6 +1173,39 @@ $('#readTools').addEventListener('change', (e) => {
 
 /* ---------- "Bring back" summary: review, edit, copy, paste into the main session ---------- */
 // Opens at once in a "writing" state; update() streams text in, finish() makes it editable, fail() shows the error.
+function showNote(b) {
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="width:min(760px,100%)"><h3>${TWIG_ICO}${esc(t('noteHeading'))}</h3><p>${esc(t('noteHint'))}</p><textarea readonly style="min-height:340px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12.5px"></textarea><div class="row-btns"><button class="btn" data-folder style="margin-right:auto">${esc(t('openFolder'))}</button><button class="btn" data-x>${esc(t('close'))}</button><button class="btn primary" data-save disabled>${esc(t('saveNote'))}</button></div></div>`;
+  const ta = bg.querySelector('textarea'), saveBtn = bg.querySelector('[data-save]'), hint = bg.querySelector('p');
+  ta.placeholder = t('noteWriting');
+  let closed = false, saved = false;
+  const close = () => { closed = true; bg.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  bg.addEventListener('click', async (e) => {
+    if (e.target === bg || e.target.closest('[data-x]')) return close();
+    if (e.target.closest('[data-folder]')) { api('/api/notes/open', { method: 'POST' }).catch(() => {}); return; }
+    if (e.target.closest('[data-save]') && !saved) {
+      saveBtn.disabled = true;
+      try {
+        const r = await (await api(`/api/branch/${b.id}/note-save`, { method: 'POST', body: JSON.stringify({ session: state.session, content: ta.value }) })).json();
+        saved = true; saveBtn.textContent = t('noteSaved');
+        hint.textContent = t('noteSavedAt') + r.file; hint.style.color = 'var(--twig)';
+        (b.notes ||= []).push({ file: r.file, time: new Date().toISOString() });
+        toast(t('noteSaved'));
+      } catch (err) { saveBtn.disabled = false; toast(String(err.message || err).slice(0, 160)); }
+    }
+  });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(bg);
+  api('/api/notes/dir').then((r) => r.json()).then((r) => { if (!closed && !saved) hint.textContent = t('noteHint') + ' ' + t('noteWhere') + r.dir; }).catch(() => {});
+  return {
+    update(text) { if (!closed) { ta.value = text; ta.scrollTop = ta.scrollHeight; } },
+    finish(text) { if (closed) return; ta.value = text; ta.readOnly = false; saveBtn.disabled = false; ta.scrollTop = 0; ta.focus(); },
+    fail(msg) { if (closed) return; ta.placeholder = ''; hint.textContent = t('noteFailed') + String(msg).slice(0, 200); hint.style.color = '#B3261E'; },
+  };
+}
+
 function showSummary() {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
