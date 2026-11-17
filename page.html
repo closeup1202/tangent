@@ -53,6 +53,12 @@ header {
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); flex: none; animation: live 2.4s ease-in-out infinite; }
 .live-dot.off { background: var(--faint); animation: none; }
 @keyframes live { 50% { opacity: .35; } }
+.ver { font-size: 11px; color: var(--faint); text-decoration: none; font-weight: 500; margin-left: -2px; }
+.ver:hover { color: var(--accent-strong); }
+.btitle[data-rename] { cursor: text; border-radius: 4px; }
+.btitle[data-rename]:hover { box-shadow: 0 1px 0 var(--twig-soft); }
+.panel-head input.rename { flex: 1; min-width: 0; height: 28px; font: inherit; font-size: 14px; font-weight: 600; border: 1px solid var(--accent); border-radius: 6px; padding: 0 8px; background: var(--bg); color: var(--text); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.blist .t b { font-weight: 650; }
 .session-title { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .hgroup { display: flex; gap: 8px; align-items: center; }
 select, .search {
@@ -241,6 +247,7 @@ select.mini { height: 24px; padding: 0 6px; font-size: 12px; border-radius: 6px;
       <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 28 C10 18 14 12 24 6" stroke="var(--twig)" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M15 14 C12 10 13 7 16 5 C18 9 18 12 15 14Z" fill="var(--leaf)"/><path d="M19 11 C23 10 26 12 27 15 C23 16 20 14 19 11Z" fill="var(--leaf)" opacity=".7"/></svg>
       Tangent
     </div>
+    <a class="ver" id="ver" href="https://github.com/closeup1202/tangent" target="_blank" rel="noopener noreferrer" data-i18n-title="versionTitle"></a>
     <span class="live-dot" id="liveDot" data-i18n-title="liveTitle"></span>
     <div class="session-title" id="sessionTitle"></div>
     <div class="hgroup">
@@ -315,6 +322,7 @@ const I18N = {
     summarizing: 'Summarizing this branch…', summaryFailed: 'Could not summarize: ',
     summaryHeading: 'Bring this branch back', summaryHint: 'Edit if you like, copy it, then paste it into your main Claude Code session.',
     copy: 'Copy', copied: 'Copied. Paste it into your main session.',
+    renameTitle: 'Click to rename this branch', renameHint: 'Enter to save · Esc to cancel · leave empty to use the first question', versionTitle: 'Tangent on GitHub',
     modelTitle: 'Model for this branch (Haiku is fastest and cheapest)', modelDefault: 'Default model',
     exportTitle: 'Export this branch as Markdown', openParent: 'Open the branch this one grew from',
     fromBranch: (title) => `From branch: ${title}`,
@@ -341,6 +349,7 @@ const I18N = {
     summarizing: '가지를 요약하는 중…', summaryFailed: '요약하지 못했습니다: ',
     summaryHeading: '가지 내용을 본 대화로 가져가기', summaryHint: '필요하면 고친 뒤 복사해서, 원래 Claude Code 대화에 붙여 넣으세요.',
     copy: '복사', copied: '복사했습니다. 원래 대화에 붙여 넣으세요.',
+    renameTitle: '눌러서 가지 이름 바꾸기', renameHint: 'Enter 저장 · Esc 취소 · 비우면 첫 질문으로 돌아감', versionTitle: 'GitHub 에서 Tangent 보기',
     modelTitle: '이 가지에서 쓸 모델 (Haiku 가 가장 빠르고 저렴합니다)', modelDefault: '기본 모델',
     exportTitle: '이 가지를 마크다운으로 저장', openParent: '이 가지가 뻗어 나온 가지 열기',
     fromBranch: (title) => `가지에서: ${title}`,
@@ -451,7 +460,8 @@ function fmtTime(ts) { if (!ts) return ''; const d = new Date(ts); return isNaN(
 // Only top-level branches grow from the main thread; nested ones hang off their parent branch
 function branchesOf(i) { return state.branches.filter((b) => b.anchor === i && !b.parent); }
 function childrenOf(id) { return state.branches.filter((b) => b.parent === id); }
-function branchTitle(b) { return b.messages.length ? b.messages[0].text.split('\n')[0] : t('newBranch'); }
+function branchTitle(b) { return b.title || (b.messages.length ? b.messages[0].text.split('\n')[0] : t('newBranch')); }
+function defaultTitle(b) { return b.messages.length ? b.messages[0].text.split('\n')[0] : t('newBranch'); }
 
 // Highlight `text` inside `container` and tag it with the branch id (best effort: first line, first match)
 function markText(container, text, id) {
@@ -594,11 +604,11 @@ function renderPanel() {
       const item = (x, depth) => {
         const n = x.messages.filter((m) => m.role === 'user').length;
         const where = x.parent ? '↳' : `#${x.anchor + 1}`;
-        return `<li data-open="${x.id}" style="margin-left:${depth * 18}px">${SMALL_TWIG}<div class="t">${esc(plain(x.selection || x.anchorPreview || '').slice(0, 140))}</div><div class="m">${where} · ${t('questions', n)} · ${fmtTime(x.createdAt)}</div></li>`;
+        return `<li data-open="${x.id}" style="margin-left:${depth * 18}px">${SMALL_TWIG}<div class="t">${x.title ? '<b>' + esc(x.title) + '</b> · ' : ''}${esc(plain(x.selection || x.anchorPreview || '').slice(0, 140))}</div><div class="m">${where} · ${t('questions', n)} · ${fmtTime(x.createdAt)}</div></li>`;
       };
       if (q) {
         // Search covers what each branch is anchored to and everything said inside it
-        const hits = state.branches.filter((x) => [x.selection, x.anchorPreview, ...x.messages.map((m) => m.text)].some((s) => (s || '').toLowerCase().includes(q)));
+        const hits = state.branches.filter((x) => [x.title, x.selection, x.anchorPreview, ...x.messages.map((m) => m.text)].some((s) => (s || '').toLowerCase().includes(q)));
         body.innerHTML = `<div class="list-note">${esc(t('branchesMatching', hits.length))}</div>` + (hits.length ? '<ul class="blist">' + [...hits].reverse().map((x) => item(x, 0)).join('') + '</ul>' : '');
       } else {
         // Tree: newest top-level branches first, each followed by its nested branches
@@ -611,7 +621,7 @@ function renderPanel() {
   panel.classList.remove('closed');
   const title = branchTitle(b);
   const exportBtn = b.id && b.messages.length && !state.draft ? '<button class="icon-btn" id="exportBtn" title="' + t('exportTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 19h14"/></svg></button>' : '';
-  head.innerHTML = `<button class="icon-btn" id="backList" title="${t('back')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${TWIG_ICO}<span>${esc(title)}</span></h2>${exportBtn}${b.sessionId && !state.draft ? '<button class="icon-btn" id="summaryBtn" title="' + t('summaryTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6v3H9z"/><path d="M8 5H6v15h12V5h-2"/><path d="M9 12h6M9 16h4"/></svg><span style="font-size:12px">' + t('summary') + '</span></button>' : ''}${b.id && !state.draft ? '<button class="icon-btn" id="delBranch" title="' + t('deleteBranch') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button>' : ''}`;
+  head.innerHTML = `<button class="icon-btn" id="backList" title="${t('back')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${TWIG_ICO}<span class="btitle"${b.id && !state.draft ? ' data-rename title="' + t('renameTitle') + '"' : ''}>${esc(title)}</span></h2>${exportBtn}${b.sessionId && !state.draft ? '<button class="icon-btn" id="summaryBtn" title="' + t('summaryTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6v3H9z"/><path d="M8 5H6v15h12V5h-2"/><path d="M9 12h6M9 16h4"/></svg><span style="font-size:12px">' + t('summary') + '</span></button>' : ''}${b.id && !state.draft ? '<button class="icon-btn" id="delBranch" title="' + t('deleteBranch') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button>' : ''}`;
   let html = anchorQuote(b);
   b.messages.forEach((m, k) => {
     // data-m lets a selection inside a branch message start a nested branch
@@ -817,6 +827,35 @@ fb.addEventListener('click', () => {
 $('#threadWrap').addEventListener('scroll', () => { fb.style.display = 'none'; });
 $('#panelBody').addEventListener('scroll', () => { fb.style.display = 'none'; });
 
+/* ---------- rename a branch: Enter or click away saves, Esc cancels, empty = back to the first question ---------- */
+function startRename() {
+  const b = state.branches.find((x) => x.id === state.open);
+  const span = document.querySelector('#panelHead .btitle');
+  if (!b || !span) return;
+  const inp = document.createElement('input');
+  inp.className = 'rename'; inp.maxLength = 80; inp.value = b.title || ''; inp.placeholder = plain(defaultTitle(b)).slice(0, 80);
+  inp.title = t('renameHint');
+  span.parentElement.replaceWith(inp);
+  inp.focus(); inp.select();
+  let done = false;
+  const finish = async (save) => {
+    if (done) return; done = true;
+    const value = inp.value.replace(/\s+/g, ' ').trim();
+    if (save && value !== (b.title || '')) {
+      try {
+        const r = await (await api('/api/branch/' + b.id, { method: 'PATCH', body: JSON.stringify({ session: state.session, title: value }) })).json();
+        if (r.title) b.title = r.title; else delete b.title;
+      } catch (err) { toast(String(err.message || err).slice(0, 160)); }
+    }
+    renderPanel();
+  };
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+  });
+  inp.addEventListener('blur', () => finish(true));
+}
+
 /* ---------- keyboard shortcuts: B branch from selection, / search, Esc back/close ---------- */
 document.addEventListener('keydown', (e) => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '');
@@ -845,6 +884,7 @@ document.addEventListener('click', async (e) => {
   if (act) { startDraft(Number(act.dataset.act), ''); return; }
   const go = el.closest('[data-goto]');
   if (go) { gotoMsg(Number(go.dataset.goto)); return; }
+  if (el.closest('[data-rename]')) { startRename(); return; }
   if (el.closest('#backList')) { state.open = null; state.draft = null; renderThread(true); renderPanel(); return; }
   if (el.closest('#closePanel')) { $('#panel').classList.add('closed'); return; }
   if (el.closest('#delBranch')) {
@@ -954,6 +994,7 @@ $('#lang').addEventListener('click', () => {
 
 /* ---------- start ---------- */
 applyI18n();
+if (BOOT && BOOT.version) $('#ver').textContent = 'v' + BOOT.version;
 (async () => {
   try {
     await loadSessions();

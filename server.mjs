@@ -24,6 +24,8 @@ const HOME = os.homedir();
 const DATA = process.env.TANGENT_DATA || path.join(HOME, '.claude', 'tangent', 'data');
 const PROJ = path.join(HOME, '.claude', 'projects');
 const IDLE_MS = 10 * 60 * 1000;
+// Single source of truth for the version: the plugin manifest
+const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, '.claude-plugin', 'plugin.json'), 'utf8')).version || ''; } catch { return ''; } })();
 
 const argv = process.argv.slice(2);
 const opt = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
@@ -47,7 +49,7 @@ if (argv.includes('--launch')) {
       const s = JSON.parse(fs.readFileSync(status, 'utf8'));
       fs.rmSync(status, { force: true });
       if (s.error) { console.log('Tangent failed to start: ' + s.error); process.exit(1); }
-      console.log('Opened Tangent in your browser: ' + s.url);
+      console.log(`Opened Tangent${VERSION ? ' v' + VERSION : ''} in your browser: ` + s.url);
       process.exit(0);
     }
     if (Date.now() > until) { console.log('Tangent server did not start within 8 seconds.'); process.exit(1); }
@@ -356,7 +358,7 @@ function serve() {
 
       if (req.method === 'GET' && u.pathname === '/') {
         if (u.searchParams.get('t') !== TOKEN) return send(res, 403, 'token');
-        const boot = { token: TOKEN, session: opt('--session') || listSessions()[0]?.id || null, cwd: CWD, platform: process.platform };
+        const boot = { token: TOKEN, session: opt('--session') || listSessions()[0]?.id || null, cwd: CWD, platform: process.platform, version: VERSION };
         const html = fs.readFileSync(path.join(ROOT, 'page.html'), 'utf8').replace('/*__BOOT__*/null', JSON.stringify(boot).replace(/</g, '\\u003c'));
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY' });
         return res.end(html);
@@ -393,6 +395,15 @@ function serve() {
           store.branches = store.branches.filter((b) => !gone.has(b.id));
           saveStore(sid, store);
           return json(res, { ok: true });
+        }
+        if (req.method === 'PATCH' && bid && !action) {
+          // Rename a branch. An empty title goes back to the default (the first question).
+          const b = store.branches.find((x) => x.id === bid);
+          if (!b) return send(res, 404, 'Branch not found.');
+          const title = String(body.title ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+          if (title) b.title = title; else delete b.title;
+          saveStore(sid, store);
+          return json(res, { ok: true, title: b.title || '' });
         }
         if (req.method === 'POST' && bid && action === 'terminal') {
           const b = store.branches.find((x) => x.id === bid);

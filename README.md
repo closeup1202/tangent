@@ -21,6 +21,7 @@ Tangent opens your current session in the browser. Highlight any sentence, click
 - **Live.** New messages in the main session appear automatically. No reload needed, and your scroll position and text selection are kept.
 - **Branches of branches.** Select text inside a branch to branch again. Branches form a tree in the list, and the text a nested branch grew from stays highlighted.
 - **Pick a model per branch.** Default, Haiku (fast and cheap for quick questions), Sonnet or Opus.
+- **Name your branches.** Click a branch title to rename it (empty goes back to the first question). Names show in the list and are searchable.
 - **Export.** Save any branch as a Markdown file.
 - **Search branches too.** The search box filters the main thread and lists the branches whose content matches.
 - **Keyboard.** `B` branches from the current selection, `/` focuses search, `Esc` goes back.
