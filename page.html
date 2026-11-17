@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cq 가지 질문</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M8 28 C10 18 14 12 24 6' stroke='%238B6B4E' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M15 14 C12 10 13 7 16 5 C18 9 18 12 15 14Z' fill='%23D97757'/%3E%3Cpath d='M19 11 C23 10 26 12 27 15 C23 16 20 14 19 11Z' fill='%23D97757' opacity='.75'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #FAF9F5; --surface: #FFFFFF; --sunken: #F0EEE6; --line: #E6E1D5;
+  --text: #1F1E1D; --muted: #75716A; --faint: #A8A399;
+  --accent: #D97757; --accent-strong: #C15F3C; --accent-soft: #F7E4DA; --accent-ink: #FFFFFF;
+  --twig: #8B6B4E; --twig-soft: #D9CBB9; --leaf: #D97757; --mark: rgba(217,119,87,.16);
+  --shadow: 0 1px 2px rgba(31,30,29,.06), 0 8px 24px rgba(31,30,29,.06);
+  --code-bg: #F3F0E8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1F1E1D; --surface: #262624; --sunken: #30302D; --line: #3A3935;
+    --text: #ECEAE3; --muted: #A39F96; --faint: #6F6B64;
+    --accent: #E08A6A; --accent-strong: #D97757; --accent-soft: #3B2A22; --accent-ink: #1F1E1D;
+    --twig: #B8977A; --twig-soft: #4E4237; --leaf: #E08A6A; --mark: rgba(224,138,106,.22);
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    --code-bg: #2C2B28;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1F1E1D; --surface: #262624; --sunken: #30302D; --line: #3A3935;
+  --text: #ECEAE3; --muted: #A39F96; --faint: #6F6B64;
+  --accent: #E08A6A; --accent-strong: #D97757; --accent-soft: #3B2A22; --accent-ink: #1F1E1D;
+  --twig: #B8977A; --twig-soft: #4E4237; --leaf: #E08A6A; --mark: rgba(224,138,106,.22);
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  --code-bg: #2C2B28;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+.app { display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+
+/* ---------- header ---------- */
+header {
+  display: flex; align-items: center; gap: 12px; padding: 10px 20px;
+  border-bottom: 1px solid var(--line); background: var(--bg);
+}
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 650; letter-spacing: -.01em; white-space: nowrap; }
+.brand svg { width: 26px; height: 26px; }
+.brand small { color: var(--muted); font-weight: 400; }
+.session-title { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.hgroup { display: flex; gap: 8px; align-items: center; }
+select, .search {
+  height: 32px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+  color: var(--text); padding: 0 10px; font: inherit; font-size: 13px; outline: none;
+}
+select { max-width: 260px; }
+.search { width: 180px; }
+select:focus, .search:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.icon-btn {
+  height: 32px; min-width: 32px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 13px;
+}
+.icon-btn:hover { border-color: var(--twig-soft); background: var(--sunken); }
+.icon-btn svg { width: 16px; height: 16px; }
+
+/* ---------- layout ---------- */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) clamp(420px, 34vw, 680px); min-height: 0; overflow: hidden; }
+.thread-wrap { overflow-y: auto; overflow-x: hidden; min-height: 0; min-width: 0; scroll-behavior: smooth; }
+body { overflow: hidden; }
+/* 그리드 칸은 기본적으로 내용 폭만큼 늘어난다. 넓은 표·코드가 패널을 밀어내지 않게 막는다 */
+.panel, .panel > *, .row > *, .bmsg, .bmsg .b { min-width: 0; }
+.panel { overflow: hidden; }
+.thread { max-width: 860px; margin: 0 auto; padding: 28px 24px 120px; }
+
+/* ---------- messages + trunk ---------- */
+.row { display: grid; grid-template-columns: minmax(0, 1fr) 72px; position: relative; }
+.gutter { position: relative; }
+.gutter::before {               /* 줄기: 대화 전체를 따라 내려가는 얇은 갈색 선 */
+  content: ""; position: absolute; left: 22px; top: 0; bottom: 0; width: 1.5px; background: var(--twig-soft);
+}
+.row:first-child .gutter::before { top: 22px; }
+.node { position: absolute; left: 18px; top: 18px; width: 10px; height: 10px; border-radius: 50%; background: var(--bg); border: 1.5px solid var(--twig-soft); }
+.row.has-branch .node { border-color: var(--twig); background: var(--twig); }
+.twigs { position: absolute; left: 0; top: 0; width: 72px; height: 90px; overflow: visible; pointer-events: none; }
+.twig-hit { pointer-events: all; cursor: pointer; }
+.twig-hit path.stem { stroke: var(--twig); stroke-width: 1.4; fill: none; stroke-linecap: round; transition: stroke-width .15s; }
+.twig-hit path.leaf { fill: var(--leaf); opacity: .85; transition: transform .15s; transform-box: fill-box; transform-origin: 0% 100%; }
+.twig-hit:hover path.stem, .twig-hit.on path.stem { stroke-width: 2.2; }
+.twig-hit:hover path.leaf, .twig-hit.on path.leaf { transform: scale(1.18); opacity: 1; }
+.twig-count { position: absolute; left: 30px; top: 84px; font-size: 11px; color: var(--twig); font-weight: 600; }
+
+.msg { padding: 10px 0 18px; position: relative; }
+.msg .who { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.msg .who b { color: var(--text); font-weight: 600; }
+.msg .who .spark { width: 14px; height: 14px; color: var(--accent); }
+.msg.user .body { background: var(--sunken); border-radius: 14px; padding: 10px 14px; display: inline-block; max-width: 100%; }
+.msg.user .bodywrap { text-align: left; }
+.msg .body { overflow-wrap: anywhere; }
+.msg.flash .body { animation: flash 1.6s ease; }
+@keyframes flash { 0%, 40% { box-shadow: 0 0 0 4px var(--accent-soft); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.msg .act {
+  position: absolute; right: 0; top: 6px; opacity: 0; transition: opacity .15s;
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--twig);
+}
+.msg:hover .act { opacity: 1; }
+.msg .act:hover { border-color: var(--twig); }
+.msg .act svg { width: 13px; height: 13px; }
+.hidden { display: none !important; }
+mark.twig-mark { background: var(--mark); color: inherit; border-bottom: 1.5px solid var(--twig); border-radius: 2px; cursor: pointer; padding: 0 1px; }
+
+/* ---------- markdown ---------- */
+.md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
+.md p { margin: .55em 0; }
+.md h1, .md h2, .md h3, .md h4 { margin: 1.1em 0 .45em; line-height: 1.35; letter-spacing: -.01em; }
+.md h1 { font-size: 1.3em; } .md h2 { font-size: 1.16em; } .md h3 { font-size: 1.05em; } .md h4 { font-size: 1em; }
+.md ul, .md ol { margin: .45em 0; padding-left: 1.4em; }
+.md li { margin: .18em 0; }
+.md li::marker { color: var(--twig); }
+.md code { font: .88em/1.5 "SF Mono", Menlo, "Cascadia Code", Consolas, "D2Coding", monospace; background: var(--code-bg); padding: .12em .38em; border-radius: 5px; }
+.md pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: .7em 0; }
+.md pre code { background: none; padding: 0; font-size: .84em; white-space: pre; }
+.md blockquote { margin: .6em 0; padding: .1em 0 .1em 14px; border-left: 2px solid var(--twig-soft); color: var(--muted); }
+.md table { border-collapse: collapse; margin: .7em 0; font-size: .92em; display: block; overflow-x: auto; max-width: 100%; }
+.md th, .md td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+.md th { background: var(--sunken); font-weight: 600; }
+.md hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
+.md a { color: var(--accent-strong); }
+
+/* ---------- floating "가지 치기" ---------- */
+.float-branch {
+  position: fixed; z-index: 20; display: none; align-items: center; gap: 6px;
+  padding: 6px 12px 6px 9px; border: 0; border-radius: 999px; font-size: 13px; font-weight: 600;
+  background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow);
+}
+.float-branch svg { width: 16px; height: 16px; }
+.float-branch:hover { background: var(--accent-strong); }
+
+/* ---------- panel ---------- */
+.panel { border-left: 1px solid var(--line); background: var(--surface); display: grid; grid-template-rows: auto 1fr auto; min-height: 0; }
+.panel-head { padding: 14px 18px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+.panel-head h2 { margin: 0; font-size: 15px; font-weight: 650; flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.panel-head h2 span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-head svg.twig-ico { width: 20px; height: 20px; flex: none; }
+.panel-body { overflow-y: auto; padding: 16px 18px; min-height: 0; }
+.quote {
+  position: relative; margin: 0 0 16px; padding: 10px 12px 10px 30px; border-radius: 10px;
+  background: var(--sunken); font-size: 13px; color: var(--muted); cursor: pointer;
+}
+.quote svg { position: absolute; left: 6px; top: 8px; width: 20px; height: 32px; }
+.quote .q { color: var(--text); display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
+.quote .src { font-size: 11px; margin-top: 6px; color: var(--faint); }
+.bmsg { margin: 0 0 14px; }
+.bmsg.user { display: flex; justify-content: flex-end; }
+.bmsg.user .b { background: var(--accent-soft); border-radius: 14px 14px 4px 14px; padding: 8px 12px; max-width: 88%; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bmsg.assistant .b { font-size: 14.5px; }
+.bmsg.error .b { color: #B3261E; font-size: 13px; background: rgba(179,38,30,.08); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; }
+.cursor { display: inline-block; width: 7px; height: 1em; vertical-align: -2px; background: var(--accent); border-radius: 1px; animation: blink 1s steps(2) infinite; margin-left: 2px; }
+@keyframes blink { 50% { opacity: 0; } }
+.thinking { display: inline-flex; gap: 4px; padding: 6px 0; }
+.thinking i { width: 6px; height: 6px; border-radius: 50%; background: var(--twig); opacity: .35; animation: dot 1.2s infinite; }
+.thinking i:nth-child(2) { animation-delay: .2s; } .thinking i:nth-child(3) { animation-delay: .4s; }
+@keyframes dot { 30% { opacity: 1; transform: translateY(-2px); } }
+
+.composer { border-top: 1px solid var(--line); padding: 12px 14px 14px; }
+.composer .box { border: 1px solid var(--line); border-radius: 14px; background: var(--bg); padding: 8px 8px 8px 12px; display: flex; gap: 8px; align-items: flex-end; }
+.composer .box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+textarea { flex: 1; border: 0; outline: none; resize: none; background: transparent; color: var(--text); font: inherit; font-size: 14px; line-height: 1.5; max-height: 180px; min-height: 22px; padding: 3px 0; box-shadow: none !important; }
+.send { width: 34px; height: 34px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
+.send:disabled { opacity: .4; cursor: default; }
+.send svg { width: 16px; height: 16px; }
+.composer .tools { display: flex; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--faint); align-items: center; }
+.composer .tools .sp { flex: 1; }
+.link-btn { white-space: nowrap; flex: none; border: 0; background: none; color: var(--muted); font-size: 12px; padding: 2px 4px; border-radius: 6px; display: inline-flex; gap: 4px; align-items: center; }
+.link-btn:hover { color: var(--accent-strong); background: var(--sunken); }
+.link-btn svg { width: 14px; height: 14px; }
+
+.blist { list-style: none; margin: 0; padding: 0; }
+.blist li { position: relative; padding: 10px 12px 10px 34px; border-radius: 10px; cursor: pointer; margin-bottom: 4px; }
+.blist li:hover { background: var(--sunken); }
+.blist li svg { position: absolute; left: 6px; top: 9px; width: 22px; height: 28px; }
+.blist .t { font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.blist .m { font-size: 11.5px; color: var(--faint); margin-top: 2px; }
+.empty { color: var(--muted); font-size: 13.5px; text-align: center; padding: 40px 12px; }
+.empty svg { width: 120px; height: 90px; display: block; margin: 0 auto 14px; }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 30; }
+.toast.on { opacity: .94; }
+
+@media (max-width: 980px) {
+  .main { grid-template-columns: 1fr; }
+  .panel { position: fixed; inset: auto 0 0 0; height: 62vh; border-left: 0; border-top: 1px solid var(--line); box-shadow: var(--shadow); z-index: 10; border-radius: 16px 16px 0 0; }
+  .panel.closed { display: none; }
+  .search { width: 120px; }
+  .session-title { display: none; }
+}
+@media (max-width: 560px) {
+  header { padding: 8px 16px; flex-wrap: wrap; }
+  .thread { padding: 20px 16px 120px; }
+  .row { grid-template-columns: minmax(0, 1fr) 48px; }
+  select { max-width: 150px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 28 C10 18 14 12 24 6" stroke="var(--twig)" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M15 14 C12 10 13 7 16 5 C18 9 18 12 15 14Z" fill="var(--leaf)"/><path d="M19 11 C23 10 26 12 27 15 C23 16 20 14 19 11Z" fill="var(--leaf)" opacity=".7"/></svg>
+      cq <small>가지 질문</small>
+    </div>
+    <div class="session-title" id="sessionTitle"></div>
+    <div class="hgroup">
+      <input class="search" id="search" placeholder="대화 검색" autocomplete="off">
+      <select id="sessionSel" title="세션"></select>
+      <button class="icon-btn" id="reload" title="대화 다시 읽기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+      <button class="icon-btn" id="theme" title="테마"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/></svg></button>
+    </div>
+  </header>
+  <div class="main">
+    <div class="thread-wrap" id="threadWrap"><div class="thread" id="thread"></div></div>
+    <aside class="panel closed" id="panel">
+      <div class="panel-head" id="panelHead"></div>
+      <div class="panel-body" id="panelBody"></div>
+      <div class="composer hidden" id="composer">
+        <div class="box">
+          <textarea id="input" rows="1" placeholder="이 부분에 대해 물어보세요"></textarea>
+          <button class="send" id="send" title="보내기 (Enter)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        </div>
+        <div class="tools">
+          <span title="이 창의 Claude 는 파일 읽기·명령 실행 없이 답합니다">Enter 보내기 · Shift+Enter 줄바꿈</span><span class="sp"></span>
+          <button class="link-btn" id="toTerminal" title="이 가지를 터미널 Claude 로 이어가기 (도구 사용 가능)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 17l6-5-6-5M12 19h8"/></svg>터미널에서 이어가기</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+<button class="float-branch" id="floatBranch"><svg viewBox="0 0 24 24" fill="none"><path d="M5 21 C7 14 10 10 18 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11 11 C9 8 10 5 12 4 C14 7 13 10 11 11Z" fill="currentColor"/></svg>가지 치기</button>
+<div class="toast" id="toast"></div>
+
+<script>
+const BOOT = /*__BOOT__*/null;
+const $ = (s) => document.querySelector(s);
+const state = { session: BOOT && BOOT.session, items: [], branches: [], open: null, draft: null, busy: new Set() };
+
+/* ---------- api ---------- */
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { 'x-cq-token': BOOT.token, 'content-type': 'application/json', ...(opts.headers || {}) } });
+  if (!r.ok) throw new Error(await r.text() || r.statusText);
+  return r;
+}
+setInterval(() => api('/api/ping', { method: 'POST' }).catch(() => {}), 60000);
+
+/* ---------- markdown (작은 자체 렌더러, 모든 입력은 먼저 이스케이프) ---------- */
+const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function inline(s) {
+  // 코드 조각을 먼저 빼 두고(굵게 안에 코드가 있어도 되게) 나머지를 변환한 뒤 되돌린다
+  const codes = [];
+  let t = esc(s.replace(/`([^`\n]+)`/g, (_, c) => '\u0000' + (codes.push(c) - 1) + '\u0000'));
+  t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![*\w])/g, '$1<em>$2</em>');
+  t = t.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  return t.replace(/\u0000(\d+)\u0000/g, (_, n) => '<code>' + esc(codes[n]) + '</code>');
+}
+function md(src) {
+  const L = src.replace(/\r/g, '').split('\n');
+  const out = [];
+  let i = 0;
+  const isBlockStart = (l) => /^\s*(`{3,}|~{3,})/.test(l) || /^#{1,4}\s/.test(l) || /^\s*>/.test(l) || /^\s*([-*+]|\d+[.)])\s+/.test(l) || /^\s*\|.*\|\s*$/.test(l) || /^\s*(-{3,}|\*{3,})\s*$/.test(l);
+  while (i < L.length) {
+    const l = L[i];
+    const fence = l.match(/^\s*(`{3,}|~{3,})/);
+    if (fence) {
+      const f = fence[1]; const buf = []; i++;
+      while (i < L.length && !L[i].trim().startsWith(f)) buf.push(L[i++]);
+      i++; out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>'); continue;
+    }
+    if (!l.trim()) { i++; continue; }
+    if (/^\s*(-{3,}|\*{3,})\s*$/.test(l)) { out.push('<hr>'); i++; continue; }
+    const h = l.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); i++; continue; }
+    if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < L.length && /^\s*\|?\s*:?-{2,}/.test(L[i + 1])) {
+      const cells = (r) => r.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map((c) => inline(c.trim()));
+      let t = '<table><thead><tr>' + cells(l).map((c) => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+      i += 2;
+      while (i < L.length && /^\s*\|.*\|\s*$/.test(L[i])) t += '<tr>' + cells(L[i++]).map((c) => `<td>${c}</td>`).join('') + '</tr>';
+      out.push(t + '</tbody></table>'); continue;
+    }
+    if (/^\s*>/.test(l)) {
+      const buf = [];
+      while (i < L.length && /^\s*>/.test(L[i])) buf.push(L[i++].replace(/^\s*>\s?/, ''));
+      out.push('<blockquote>' + md(buf.join('\n')) + '</blockquote>'); continue;
+    }
+    if (/^\s*([-*+]|\d+[.)])\s+/.test(l)) {
+      const stack = []; let html = '';
+      while (i < L.length) {
+        const m = L[i].match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+        if (!m) {
+          if (L[i].trim() && /^\s{2,}/.test(L[i]) && stack.length) { html = html.replace(/<\/li>$/, '') + '<br>' + inline(L[i].trim()) + '</li>'; i++; continue; }
+          break;
+        }
+        const ind = m[1].replace(/\t/g, '  ').length, tag = /\d/.test(m[2]) ? 'ol' : 'ul';
+        while (stack.length && ind < stack[stack.length - 1].ind) html += `</${stack.pop().tag}>`;
+        if (!stack.length || ind > stack[stack.length - 1].ind) {
+          if (stack.length) html = html.replace(/<\/li>$/, '');
+          stack.push({ ind, tag }); html += `<${tag}>`;
+        }
+        html += '<li>' + inline(m[3]) + '</li>'; i++;
+        if (i < L.length && !L[i].trim() && i + 1 < L.length && /^\s*([-*+]|\d+[.)])\s+/.test(L[i + 1])) i++;
+      }
+      while (stack.length) { const s = stack.pop(); html += `</${s.tag}>` + (stack.length ? '</li>' : ''); }
+      out.push(html); continue;
+    }
+    const buf = [];
+    while (i < L.length && L[i].trim() && !(buf.length && isBlockStart(L[i]))) buf.push(L[i++]);
+    out.push('<p>' + buf.map(inline).join('<br>') + '</p>');
+  }
+  return out.join('');
+}
+
+/* ---------- 그림 조각 ---------- */
+const SPARK = '<svg class="spark" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.6 6.2L20 6l-4.2 5L22 12l-6.2 1.6L20 18l-5-4.2L12 22l-1.6-6.2L4 18l4.2-5L2 12l6.2-1.6L4 6l5 4.2z"/></svg>';
+const TWIG_ICO = '<svg class="twig-ico" viewBox="0 0 24 24" fill="none"><path d="M5 21 C7 14 10 10 18 5" stroke="var(--twig)" stroke-width="1.8" stroke-linecap="round"/><path d="M11 11 C9 8 10 5 12 4 C14 7 13 10 11 11Z" fill="var(--leaf)"/><path d="M14 8.5 C17 8 19 9.5 19.5 12 C16.5 12.5 14.8 11 14 8.5Z" fill="var(--leaf)" opacity=".7"/></svg>';
+const SMALL_TWIG = '<svg viewBox="0 0 22 30" fill="none"><path d="M4 30 C4 20 8 12 18 6" stroke="var(--twig)" stroke-width="1.4" stroke-linecap="round"/><path d="M11 13 C9 10 10 6 12.5 5 C14 8 13.5 11 11 13Z" fill="var(--leaf)"/></svg>';
+function twigSvg(branches, openId) {
+  // 줄기(x=23)에서 오른쪽 위로 휘어 나가는 얇은 가지들. 많으면 3개까지만 그리고 숫자로 표시.
+  const shown = branches.slice(0, 3);
+  const parts = shown.map((b, k) => {
+    const y0 = 23, y1 = 36 + k * 15, x1 = 54 - k * 4;
+    const d = `M23 ${y0} C 26 ${y1 - 4} ${34} ${y1} ${x1} ${y1 - 6}`;
+    const leaf = `M${x1} ${y1 - 6} c 3 -6 8 -7 12 -6 c -1 5 -7 8 -12 6Z`;
+    return `<g class="twig-hit${b.id === openId ? ' on' : ''}" data-b="${b.id}"><path class="stem" d="${d}"/><path class="leaf" d="${leaf}"/><path d="${d}" stroke="transparent" stroke-width="12" fill="none"/></g>`;
+  }).join('');
+  return `<svg class="twigs" viewBox="0 0 72 90">${parts}</svg>` + (branches.length > 1 ? `<span class="twig-count">${branches.length}</span>` : '');
+}
+
+/* ---------- thread ---------- */
+function fmtTime(t) { if (!t) return ''; const d = new Date(t); return isNaN(d) ? '' : d.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+function branchesOf(i) { return state.branches.filter((b) => b.anchor === i); }
+
+function renderThread(keepScroll) {
+  const wrap = $('#threadWrap'), prev = wrap.scrollTop;
+  const q = $('#search').value.trim().toLowerCase();
+  const html = state.items.map((it) => {
+    const bs = branchesOf(it.i);
+    const hide = q && !it.text.toLowerCase().includes(q) ? ' hidden' : '';
+    const who = it.role === 'user' ? '<b>나</b>' : SPARK + '<b>Claude</b>';
+    return `<div class="row${bs.length ? ' has-branch' : ''}${hide}" data-i="${it.i}">
+      <div class="msg ${it.role}" data-i="${it.i}">
+        <div class="who">${who}<span>${fmtTime(it.time)}</span></div>
+        <div class="bodywrap"><div class="body md">${md(it.text)}</div></div>
+        <button class="act" data-act="${it.i}" title="이 메시지 전체로 가지 치기">${SMALL_TWIG.replace('viewBox="0 0 22 30"', 'viewBox="0 0 22 30" width="13" height="13"')}가지</button>
+      </div>
+      <div class="gutter"><span class="node"></span>${bs.length ? twigSvg(bs, state.open) : ''}</div>
+    </div>`;
+  }).join('');
+  $('#thread').innerHTML = html || '<div class="empty">표시할 메시지가 없습니다.</div>';
+  markSelections();
+  if (keepScroll) wrap.scrollTop = prev;
+}
+
+function markSelections() {
+  for (const b of state.branches) {
+    if (!b.selection) continue;
+    const body = document.querySelector(`.msg[data-i="${b.anchor}"] .body`);
+    if (!body) continue;
+    const needle = b.selection.split('\n').map((s) => s.trim()).find((s) => s.length > 0);
+    if (!needle) continue;
+    const probe = needle.slice(0, 80);
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = walker.nextNode())) {
+      const k = n.nodeValue.indexOf(probe);
+      if (k < 0 || n.parentElement.closest('mark')) continue;
+      const r = document.createRange(); r.setStart(n, k); r.setEnd(n, k + probe.length);
+      const m = document.createElement('mark'); m.className = 'twig-mark'; m.dataset.b = b.id;
+      try { r.surroundContents(m); } catch {}
+      break;
+    }
+  }
+}
+
+async function loadSessions() {
+  const { sessions } = await (await api('/api/sessions')).json();
+  if (state.session && !sessions.some((s) => s.id === state.session)) sessions.unshift({ id: state.session, title: '' });
+  $('#sessionSel').innerHTML = sessions.map((s) => {
+    const d = s.mtime ? new Date(s.mtime).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · ' : '';
+    return `<option value="${s.id}"${s.id === state.session ? ' selected' : ''}>${esc(d + (s.title || s.id.slice(0, 8)))}</option>`;
+  }).join('');
+}
+
+async function loadThread(scrollBottom) {
+  if (!state.session) { $('#thread').innerHTML = '<div class="empty">이 폴더에는 Claude Code 세션 기록이 없습니다.</div>'; return; }
+  const data = await (await api('/api/thread?session=' + encodeURIComponent(state.session))).json();
+  state.items = data.items; state.branches = data.branches;
+  $('#sessionTitle').textContent = data.title || '';
+  renderThread(!scrollBottom);
+  if (scrollBottom) { const w = $('#threadWrap'); w.style.scrollBehavior = 'auto'; w.scrollTop = w.scrollHeight; w.style.scrollBehavior = ''; }
+  renderPanel();
+}
+
+/* ---------- panel ---------- */
+function anchorQuote(b) {
+  const it = state.items[b.anchor];
+  const text = b.selection || (it ? it.text : b.anchorPreview || '');
+  const src = (b.anchorRole || (it && it.role)) === 'user' ? '내 질문' : 'Claude 답변';
+  return `<div class="quote" data-goto="${b.anchor}" title="원래 위치로 이동"><svg viewBox="0 0 20 32" fill="none"><path d="M6 32 C6 20 9 12 17 6" stroke="var(--twig)" stroke-width="1.4" stroke-linecap="round"/><path d="M10.5 15 C8.5 12 9.5 8 12 7 C13.5 10 13 13 10.5 15Z" fill="var(--leaf)"/></svg><div class="q">${esc(text.length > 600 ? text.slice(0, 600) + '…' : text)}</div><div class="src">${src}${b.selection ? '의 일부' : ''} · #${b.anchor + 1}</div></div>`;
+}
+
+function renderPanel() {
+  const panel = $('#panel'), head = $('#panelHead'), body = $('#panelBody'), comp = $('#composer');
+  const b = state.draft || state.branches.find((x) => x.id === state.open);
+  if (!b) {
+    head.innerHTML = `<h2>${TWIG_ICO}<span>가지 목록</span></h2><button class="icon-btn" id="closePanel" title="닫기">✕</button>`;
+    comp.classList.add('hidden');
+    if (!state.branches.length) {
+      body.innerHTML = `<div class="empty"><svg viewBox="0 0 120 90" fill="none"><path d="M20 88 C24 60 40 40 92 14" stroke="var(--twig)" stroke-width="1.6" stroke-linecap="round"/><path d="M48 46 C42 36 46 26 54 22 C58 32 56 40 48 46Z" fill="var(--leaf)" opacity=".85"/><path d="M66 34 C76 30 86 34 90 42 C80 46 70 42 66 34Z" fill="var(--leaf)" opacity=".6"/><path d="M34 62 C40 56 48 56 52 60" stroke="var(--twig)" stroke-width="1.2" stroke-linecap="round"/></svg>아직 가지가 없습니다.<br>왼쪽 대화에서 <b>문장을 드래그</b>하거나<br>메시지의 <b>가지</b> 버튼을 누르세요.</div>`;
+    } else {
+      body.innerHTML = '<ul class="blist">' + [...state.branches].reverse().map((x) => {
+        const n = x.messages.filter((m) => m.role === 'user').length;
+        return `<li data-open="${x.id}">${SMALL_TWIG}<div class="t">${esc((x.selection || x.anchorPreview || '').slice(0, 140))}</div><div class="m">#${x.anchor + 1} · 질문 ${n}개 · ${fmtTime(x.createdAt)}</div></li>`;
+      }).join('') + '</ul>';
+    }
+    return;
+  }
+  panel.classList.remove('closed');
+  const title = b.messages.length ? (b.messages[0].text.split('\n')[0]) : '새 가지';
+  head.innerHTML = `<button class="icon-btn" id="backList" title="가지 목록"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${TWIG_ICO}<span>${esc(title)}</span></h2>${b.id && !state.draft ? '<button class="icon-btn" id="delBranch" title="가지 삭제"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button>' : ''}`;
+  let html = anchorQuote(b);
+  for (const m of b.messages) {
+    if (m.role === 'user') html += `<div class="bmsg user"><div class="b">${esc(m.text)}</div></div>`;
+    else if (m.role === 'error') html += `<div class="bmsg error"><div class="b">${esc(m.text)}</div></div>`;
+    else html += `<div class="bmsg assistant"><div class="b md">${md(m.text)}</div></div>`;
+  }
+  if (b._streaming !== undefined) html += `<div class="bmsg assistant"><div class="b md" id="streamBox">${b._streaming ? md(b._streaming) + '<span class="cursor"></span>' : '<span class="thinking"><i></i><i></i><i></i></span>'}</div></div>`;
+  body.innerHTML = html;
+  body.scrollTop = body.scrollHeight;
+  comp.classList.remove('hidden');
+  $('#toTerminal').style.display = b.sessionId ? '' : 'none';
+  $('#send').disabled = state.busy.has(b.id || 'draft');
+}
+
+function openBranch(id) {
+  state.draft = null; state.open = id;
+  $('#panel').classList.remove('closed');
+  renderThread(true); renderPanel();
+  setTimeout(() => $('#input').focus(), 0);
+}
+function startDraft(anchor, selection) {
+  state.open = null;
+  state.draft = { id: null, anchor, selection: selection || '', anchorRole: state.items[anchor]?.role, messages: [] };
+  $('#panel').classList.remove('closed');
+  renderPanel();
+  setTimeout(() => $('#input').focus(), 0);
+}
+function gotoMsg(i, instant) {
+  const el = document.querySelector(`.msg[data-i="${i}"]`);
+  if (!el) return;
+  const w = $('#threadWrap');
+  if (instant) w.style.scrollBehavior = 'auto';
+  el.scrollIntoView({ block: el.offsetHeight > w.clientHeight * 0.6 ? 'start' : 'center', behavior: instant ? 'auto' : 'smooth' });
+  if (instant) w.style.scrollBehavior = '';
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+
+/* ---------- 질문 보내기 (NDJSON 스트리밍) ---------- */
+async function sendQuestion() {
+  const input = $('#input');
+  const question = input.value.trim();
+  if (!question) return;
+  const draft = state.draft;
+  const b = draft || state.branches.find((x) => x.id === state.open);
+  if (!b) return;
+  const key = b.id || 'draft';
+  if (state.busy.has(key)) return;
+  state.busy.add(key);
+  input.value = ''; autosize();
+  b.messages.push({ role: 'user', text: question });
+  b._streaming = '';
+  renderPanel();
+
+  const url = draft ? '/api/branch' : `/api/branch/${b.id}/ask`;
+  const payload = draft ? { session: state.session, anchor: b.anchor, selection: b.selection, question } : { session: state.session, question };
+  let current = b, raf = 0;
+  const paint = () => { raf = 0; const box = $('#streamBox'); if (box && (state.open === current.id || state.draft === current)) { box.innerHTML = md(current._streaming) + '<span class="cursor"></span>'; const pb = $('#panelBody'); pb.scrollTop = pb.scrollHeight; } };
+  try {
+    const r = await api(url, { method: 'POST', body: JSON.stringify(payload) });
+    const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let k;
+      while ((k = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, k); buf = buf.slice(k + 1);
+        if (!line) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === 'branch') {
+          const nb = { ...ev.branch, _streaming: '' };
+          if (draft) { state.draft = null; state.open = nb.id; state.branches.push(nb); state.busy.delete('draft'); state.busy.add(nb.id); }
+          else Object.assign(current, { sessionId: ev.branch.sessionId });
+          if (draft) { current = nb; renderThread(true); renderPanel(); }
+        } else if (ev.type === 'delta') {
+          current._streaming += ev.text;
+          if (!raf) raf = requestAnimationFrame(paint);
+        } else if (ev.type === 'done' || ev.type === 'error') {
+          const idx = state.branches.findIndex((x) => x.id === ev.branch.id);
+          if (idx >= 0) state.branches[idx] = ev.branch; else state.branches.push(ev.branch);
+          current = ev.branch;
+        }
+      }
+    }
+  } catch (e) {
+    if (current) { delete current._streaming; current.messages.push({ role: 'error', text: String(e.message || e) }); }
+  } finally {
+    state.busy.delete(key); if (current && current.id) state.busy.delete(current.id);
+    if (current) delete current._streaming;
+    renderThread(true); renderPanel();
+  }
+}
+
+/* ---------- 선택 → 가지 치기 버튼 ---------- */
+const fb = $('#floatBranch');
+let pendingSel = null;
+document.addEventListener('mouseup', (e) => {
+  if (e.target.closest('#floatBranch')) return;
+  setTimeout(() => {
+    const sel = window.getSelection();
+    const text = sel && sel.toString().trim();
+    if (!text || !sel.rangeCount) { fb.style.display = 'none'; pendingSel = null; return; }
+    const range = sel.getRangeAt(0);
+    const a = (range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement).closest('.msg');
+    const b = (range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement).closest('.msg');
+    if (!a || a !== b) { fb.style.display = 'none'; pendingSel = null; return; }
+    pendingSel = { anchor: Number(a.dataset.i), text };
+    const rect = range.getBoundingClientRect();
+    fb.style.display = 'inline-flex';
+    const x = Math.min(window.innerWidth - fb.offsetWidth - 12, Math.max(12, rect.right - fb.offsetWidth / 2));
+    const y = rect.bottom + 8 + fb.offsetHeight > window.innerHeight ? rect.top - fb.offsetHeight - 8 : rect.bottom + 8;
+    fb.style.left = x + 'px'; fb.style.top = y + 'px';
+  }, 0);
+});
+fb.addEventListener('mousedown', (e) => e.preventDefault());
+fb.addEventListener('click', () => {
+  if (!pendingSel) return;
+  startDraft(pendingSel.anchor, pendingSel.text);
+  fb.style.display = 'none'; window.getSelection().removeAllRanges(); pendingSel = null;
+});
+$('#threadWrap').addEventListener('scroll', () => { fb.style.display = 'none'; });
+
+/* ---------- 클릭 위임 ---------- */
+document.addEventListener('click', async (e) => {
+  const t = e.target;
+  const twig = t.closest('.twig-hit, mark.twig-mark, [data-open]');
+  if (twig) { openBranch(twig.dataset.b || twig.dataset.open); return; }
+  const act = t.closest('[data-act]');
+  if (act) { startDraft(Number(act.dataset.act), ''); return; }
+  const go = t.closest('[data-goto]');
+  if (go) { gotoMsg(Number(go.dataset.goto)); return; }
+  if (t.closest('#backList')) { state.open = null; state.draft = null; renderThread(true); renderPanel(); return; }
+  if (t.closest('#closePanel')) { $('#panel').classList.add('closed'); return; }
+  if (t.closest('#delBranch')) {
+    const b = state.branches.find((x) => x.id === state.open);
+    if (!b || !confirm('이 가지를 목록에서 지울까요? (Claude 세션 기록 자체는 남습니다)')) return;
+    await api(`/api/branch/${b.id}?session=${encodeURIComponent(state.session)}`, { method: 'DELETE' });
+    state.branches = state.branches.filter((x) => x.id !== b.id); state.open = null;
+    renderThread(true); renderPanel(); return;
+  }
+  if (t.closest('#toTerminal')) {
+    const b = state.branches.find((x) => x.id === state.open);
+    if (!b) return;
+    try {
+      const r = await (await api(`/api/branch/${b.id}/terminal`, { method: 'POST', body: JSON.stringify({ session: state.session }) })).json();
+      if (r.opened) toast('터미널 창을 열었습니다. 도구를 쓸 수 있는 Claude 로 이어집니다.');
+      else {
+        try { await navigator.clipboard.writeText(r.command); toast('터미널을 열지 못했습니다. 명령을 복사했으니 터미널에 붙여 넣으세요.'); }
+        catch { prompt('터미널에서 실행하세요', r.command); }
+      }
+    }
+    catch (err) { toast(String(err.message || err)); }
+  }
+});
+
+/* ---------- 입력 ---------- */
+const input = $('#input');
+function autosize() { input.style.height = 'auto'; input.style.height = Math.min(180, input.scrollHeight) + 'px'; }
+input.addEventListener('input', autosize);
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); sendQuestion(); }
+  if (e.key === 'Escape') input.blur();
+});
+$('#send').addEventListener('click', sendQuestion);
+let searchT = 0;
+$('#search').addEventListener('input', () => { clearTimeout(searchT); searchT = setTimeout(() => renderThread(true), 150); });
+$('#sessionSel').addEventListener('change', (e) => { state.session = e.target.value; state.open = null; state.draft = null; loadThread(true); });
+$('#reload').addEventListener('click', () => loadThread(false).then(() => toast('대화를 다시 읽었습니다.')));
+$('#theme').addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  root.dataset.theme = dark ? 'light' : 'dark';
+  try { localStorage.setItem('cq-theme', root.dataset.theme); } catch {}
+});
+try { const th = localStorage.getItem('cq-theme'); if (th) document.documentElement.dataset.theme = th; } catch {}
+let toastT = 0;
+function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2600); }
+
+/* ---------- 시작 ---------- */
+(async () => {
+  try {
+    await loadSessions();
+    await loadThread(true);
+    $('#panel').classList.remove('closed');
+    renderPanel();
+    const hb = (location.hash.match(/b=([a-z0-9]+)/) || [])[1];
+    const target = hb && state.branches.find((x) => x.id === hb);
+    if (target) { openBranch(target.id); gotoMsg(target.anchor, true); }
+  } catch (e) { $('#thread').innerHTML = `<div class="empty">불러오지 못했습니다: ${esc(String(e.message || e))}</div>`; }
+})();
+</script>
+</body>
+</html>

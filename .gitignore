@@ -1,0 +1,5 @@
+# 가지 기록은 ~/.claude/cq-web/data 에 저장되지만, 혹시 레포 안에 생겨도 올리지 않는다 (대화 내용 포함)
+data/
+*.log
+node_modules/
+.DS_Store
