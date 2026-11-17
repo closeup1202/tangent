@@ -6,29 +6,53 @@ English | [한국어](README.ko.md)
 
 ![Select a sentence, click Branch, ask a side question; the answer streams in the side panel and a twig grows from the main thread](docs/demo.gif)
 
-A Claude Code conversation is a single line. When you want to ask *"wait, what does this part mean?"* halfway through a task, you have two options: ask it in the main thread and clutter the context, or don't ask at all.
+Highlight any sentence in your Claude Code session, ask a side question about it in a panel next to it, and keep your main conversation clean.
 
-Tangent opens your current session in the browser. Highlight any sentence, click **Branch**, and ask your side question in a panel next to it. The branch only knows the part you picked. Your main session stays untouched.
+## Quick start
+
+You need [Claude Code](https://code.claude.com/docs) (logged in) and Node.js 18+.
+
+**1. Install.** At the Claude Code prompt:
+
+```
+/plugin install tangent --marketplace closeup1202/tangent
+```
+
+Answer `y`, then choose the **user** scope so `/tg` works in every project.
+
+**2. Open your session.** In any Claude Code session, type:
+
+```
+/tg
+```
+
+Your conversation opens in the browser.
+
+**3. Branch.** Select a sentence, click **Branch** (or press `B`), and ask.
+
+That's it. The answer streams in the side panel, and your main session is untouched.
 
 ## Features
 
-- **Branch from a sentence.** Select text in any message and click **Branch**, or branch from a whole message.
-- **Focused context.** A branch sees only the selected text and the question/answer pair it came from, not your whole session.
-- **Streaming answers.** Follow-up questions in a branch remember the earlier ones.
-- **Branches are visible.** Branches grow as twigs off the conversation's trunk, and the sentences you branched from stay highlighted. Branches are saved, so they are still there next time.
-- **Images.** Paste a screenshot (Ctrl/Cmd+V), drop image files, or use the 📎 button: up to 4 images per question, resized to 1568px before sending. They show in the branch and are deleted with it.
-- **Read files (optional).** Flip the **Read files** switch and the branch can look at your project with `Read`, `Grep` and `Glob`, so it answers from the actual code. It still cannot edit anything or run commands, and files outside the project folder are refused. Each file it reads shows up as a chip above the answer.
-- **Bring it back.** When a branch reaches a conclusion, **Bring back** writes a short note (topic + bullet points) that you can edit, copy and paste into the main session. The summary runs on a throwaway copy, so the branch history stays clean.
-- **Live.** New messages in the main session appear automatically. No reload needed, and your scroll position and text selection are kept.
-- **Branches of branches.** Select text inside a branch to branch again. Branches form a tree in the list, and the text a nested branch grew from stays highlighted.
-- **Model and effort per branch, like `/model`.** By default a branch uses the same model and effort as your main conversation (read from its log, refreshed at every question). Or pick any model your Claude Code offers (Fable, Opus, Sonnet, Haiku, 1M-context variants) and set effort with ◀ ▶ (↑↓ / ←→ on the keyboard).
-- **Name your branches.** Click a branch title to rename it (empty goes back to the first question). Names show in the list and are searchable.
-- **Study notes.** **Note** turns what you learned in a branch into a standalone Markdown note (front matter with tags, summary, key points, example, pitfalls, related terms) that you can edit and save to `Documents/Tangent Notes/` (set `TANGENT_NOTES_DIR` to change it). The files open in Obsidian or any Markdown editor.
-- **Export.** Save any branch as a Markdown file.
-- **Search branches too.** The search box filters the main thread and lists the branches whose content matches.
-- **Keyboard.** `B` branches from the current selection, `/` focuses search, `Esc` goes back.
-- **Continue in the terminal.** When you need edits or shell commands, one click reopens the same branch as a regular Claude Code session (`claude -r <branch>`), in the terminal you ran `/tg` from where possible: a new pane in **herdr**, a new window in **tmux**, a new tab in **WezTerm** or **Windows Terminal**, a new **Ghostty** or **iTerm2** window; otherwise the default terminal. Set `TANGENT_TERMINAL` to use your own command, e.g. `TANGENT_TERMINAL='open -na Ghostty.app --args --working-directory={cwd} -e {cmd}'`.
-- **Also included:** search, a session switcher, light and dark themes, and an English/Korean UI (follows your browser language).
+**Branching**
+- Branch from a selected sentence or a whole message, and branch again inside a branch.
+- A branch sees only the part you picked, not your whole session.
+- Branches show as twigs on the conversation and are saved, renamable and searchable.
+
+**Asking**
+- Paste or drop screenshots into a question.
+- Turn on **Read files** to let a branch read your project (read-only).
+- Pick the model and effort like `/model`. By default it follows your main conversation.
+
+**Keeping what you learn**
+- **Note** writes a study note from a branch and saves it as Markdown on your PC (Obsidian-friendly).
+- **Bring back** summarizes a branch so you can paste the conclusion into the main session.
+- **Export** saves a branch as Markdown.
+
+**Comfort**
+- New messages in the main session appear live.
+- **Continue in terminal** reopens a branch as a full Claude Code session. herdr, tmux, WezTerm, Windows Terminal, Ghostty and iTerm2 are detected.
+- Keyboard shortcuts (`B`, `/`, `Esc`), light/dark theme, English/Korean UI.
 
 ## How it differs from built-in commands
 
@@ -42,27 +66,13 @@ Tangent opens your current session in the browser. Highlight any sentence, click
 | Tools | none | full | optional read-only (one click to a full terminal session) |
 | Bring the result back to the main thread | – | manual | ✓ (summary to paste) |
 
-## Requirements
+## Other ways to install
 
-- Node.js 18 or later
-- The [Claude Code](https://code.claude.com/docs) CLI, logged in (`claude` on your `PATH`)
-- Windows or macOS. Linux works for the browser part; if no terminal can be opened, the command is copied for you.
+**From a shell:** `claude plugin install tangent --marketplace closeup1202/tangent`
 
-## Install
+**Command name:** the command is `/tg`. If another plugin already uses that name, it is `/tangent:tg`.
 
-### As a Claude Code plugin (recommended)
-
-At the Claude Code prompt:
-
-```
-/plugin install tangent --marketplace closeup1202/tangent
-```
-
-Answer `y` to add the marketplace, then pick a scope (user scope makes `/tg` available in every project). From a shell, the same is `claude plugin install tangent --marketplace closeup1202/tangent`.
-
-The command is `/tg`. If another plugin or command already uses that name, it is `/tangent:tg`.
-
-### Manually
+**Manually,** without the plugin system:
 
 ```bash
 git clone https://github.com/closeup1202/tangent.git
@@ -70,22 +80,19 @@ cd tangent
 node install.mjs
 ```
 
-The installer:
+This writes `/tg` to `~/.claude/commands/tg.md` (pre-allowed, so it runs without a permission prompt) and a launcher to `~/.claude/tangent/launch.mjs`. Restart Claude Code afterwards. If you move the repo, run `node install.mjs` again.
 
-- writes the `/tg` slash command to `~/.claude/commands/tg.md`, pre-allowed so it runs without a permission prompt;
-- writes a small launcher to `~/.claude/tangent/launch.mjs` that points to this repo.
+## Configuration
 
-Restart Claude Code after installing. If you move the repo, run `node install.mjs` again.
+All settings are optional environment variables.
 
-## Usage
-
-In any Claude Code session, type:
-
-```
-/tg
-```
-
-Your conversation opens in the browser. Highlight text, click **Branch**, and ask. New messages in the main session show up automatically.
+| Variable | What it does | Default |
+|---|---|---|
+| `TANGENT_NOTES_DIR` | Where **Note** saves study notes (for example your Obsidian vault) | `~/Documents/Tangent Notes` |
+| `TANGENT_TERMINAL` | Your own command for **Continue in terminal**, with `{cwd}` and `{cmd}` placeholders, e.g. `open -na Ghostty.app --args --working-directory={cwd} -e {cmd}` | detected |
+| `TANGENT_DATA` | Where branches, images and notes metadata are stored | `~/.claude/tangent/data` |
+| `TANGENT_CLAUDE_BIN` | Path to the `claude` binary, if it is somewhere unusual | `claude` on `PATH` |
+| `TANGENT_NO_OPEN` | Start without opening a browser | unset |
 
 ## How it works
 
@@ -96,25 +103,25 @@ Your conversation opens in the browser. Highlight text, click **Branch**, and as
 | `install.mjs` | Manual install and uninstall of the slash command. |
 | `commands/tg.md`, `.claude-plugin/` | Plugin packaging: the `/tg` command, manifest and marketplace file. |
 
-- **Your session is read-only.** Tangent reads `~/.claude/projects/<project>/<session>.jsonl` and never writes to it.
-- **Branches are ordinary Claude Code sessions.** They run with `claude -p --tools "" --strict-mcp-config` (or `--tools Read,Grep,Glob` when **Read files** is on). The first message gets the picked context through `--append-system-prompt-file`, and follow-ups use `--resume`. Branches count toward your normal Claude usage.
-- **Branch data lives outside the repo,** in `~/.claude/tangent/data/`. It contains conversation text. Override the location with `TANGENT_DATA`.
+- **Your session is read-only.** Tangent reads `~/.claude/projects/<project>/<session>.jsonl` and never writes to it. After the first read it only reads what was appended, so live refresh stays fast on long sessions.
+- **Branches are ordinary Claude Code sessions.** They run with `claude -p --tools "" --strict-mcp-config`, or with `--tools Read,Grep,Glob` when **Read files** is on. The first message gets the picked context through `--append-system-prompt-file`, and follow-ups use `--resume`. Branches count toward your normal Claude usage.
+- **Branch data lives outside the repo,** in `~/.claude/tangent/data/`. It contains conversation text.
 
 ## Security
 
-- The server listens only on `127.0.0.1`. It uses a random token per launch and checks the `Host` and `Origin` headers.
+- The server listens only on `127.0.0.1`. It uses a random token per launch and checks the `Host` and `Origin` headers. One server runs per project folder.
 - It shuts itself down after 10 minutes without requests.
-- Branch chats can never edit files or run commands, because there is nowhere to show a permission prompt. With **Read files** on they get read-only tools; anything that would need a permission prompt (such as reading outside the project) is denied.
+- Branch chats can never edit files or run commands, because there is nowhere to show a permission prompt. With **Read files** on they get read-only tools, and anything that would need a permission prompt (such as reading outside the project) is denied.
 
 ## Limitations
 
 - **Tangent depends on Claude Code's internal session format.** A Claude Code update could break parsing. All format-specific code is in the "session reading" section of `server.mjs`.
-- **macOS support is new.** The browser opens with `open`, and the terminal is Terminal.app through `osascript`. Please open an issue if something misbehaves.
-- **If `claude` was installed through npm on Windows** (`claude.cmd`), it runs through the shell. Set `TANGENT_CLAUDE_BIN` if your binary is somewhere unusual.
+- **Tested on Windows and macOS.** On Linux the browser part works. If no terminal can be opened, the command is copied for you instead.
+- **If `claude` was installed through npm on Windows** (`claude.cmd`), it runs through the shell.
 
 ## Uninstall
 
-Plugin: `/plugin uninstall tangent` (or `claude plugin uninstall tangent`).
+Plugin: `/plugin uninstall tangent`, or `claude plugin uninstall tangent` from a shell.
 
 Manual install:
 
