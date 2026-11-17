@@ -273,6 +273,31 @@ function pairFor(items, idx) {
 // ---------------------------------------------------------------- branch store
 const storeFile = (sid) => path.join(DATA, `${sid}.json`);
 const ctxFile = (bid) => path.join(DATA, 'ctx', `${bid}.md`);
+// ---------------------------------------------------------------- images attached to branch questions
+const MAX_IMAGES = 4;
+const IMG_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+const IMG_EXT_TYPE = { png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
+const imgDir = (bid) => path.join(DATA, 'img', bid.replace(/[^a-z0-9]/g, ''));
+// [] when none, null when invalid
+function validImages(list) {
+  if (list === undefined || list === null) return [];
+  if (!Array.isArray(list) || list.length > MAX_IMAGES) return null;
+  const out = [];
+  for (const im of list) {
+    if (!im || !IMG_TYPES[im.media_type] || typeof im.data !== 'string' || im.data.length > 7e6 || !/^[A-Za-z0-9+/=]+$/.test(im.data)) return null;
+    out.push({ media_type: im.media_type, data: im.data });
+  }
+  return out;
+}
+function saveImages(bid, msgIndex, images) {
+  fs.mkdirSync(imgDir(bid), { recursive: true });
+  return images.map((im, k) => {
+    const name = `${msgIndex}-${k}.${IMG_TYPES[im.media_type]}`;
+    fs.writeFileSync(path.join(imgDir(bid), name), Buffer.from(im.data, 'base64'));
+    return name;
+  });
+}
+
 function loadStore(sid) { try { return JSON.parse(fs.readFileSync(storeFile(sid), 'utf8')); } catch { return { branches: [] }; } }
 function saveStore(sid, s) { const f = storeFile(sid); fs.writeFileSync(f + '.tmp', JSON.stringify(s, null, 1)); fs.renameSync(f + '.tmp', f); }
 
@@ -287,11 +312,13 @@ const READ_TOOLS = 'Read,Grep,Glob';
 // Model aliases a branch may pick. '' = whatever the user's Claude Code default is.
 const MODELS = ['', 'haiku', 'sonnet', 'opus'];
 
-function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = false, model = '' }, onEvent = () => {}) {
+// images: [{ media_type, data(base64) }] are sent with the prompt as one stream-json user message.
+function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = false, model = '', images = [] }, onEvent = () => {}) {
   return new Promise((resolve) => {
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
       '--tools', readTools ? READ_TOOLS : '', '--strict-mcp-config'];
     if (model && MODELS.includes(model)) args.push('--model', model);
+    if (images.length) args.push('--input-format', 'stream-json');
     if (resumeId) args.push('--resume', resumeId);
     else args.push('--append-system-prompt-file', ctx, '-n', name);
     if (fork) args.push('--fork-session', '--no-session-persistence');
@@ -341,7 +368,11 @@ function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = fals
     // If claude exits before reading stdin (bad flag, not logged in, missing binary), writing raises EPIPE.
     // Without a handler that would crash the whole server; the 'close' handler reports the failure instead.
     p.stdin.on('error', () => {});
-    p.stdin.end(prompt, 'utf8');
+    if (images.length) {
+      const content = images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } }));
+      content.push({ type: 'text', text: prompt });
+      p.stdin.end(JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n', 'utf8');
+    } else p.stdin.end(prompt, 'utf8');
   });
 }
 
@@ -423,6 +454,14 @@ function serve() {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY' });
         return res.end(html);
       }
+      const im = u.pathname.match(/^\/img\/([a-z0-9]+)\/(\d+-\d+\.(png|jpg|gif|webp))$/);
+      if (req.method === 'GET' && im) {
+        if (u.searchParams.get('t') !== TOKEN) return send(res, 403, 'token');
+        const file = path.join(imgDir(im[1]), im[2]);
+        if (!fs.existsSync(file)) return send(res, 404, 'not found');
+        res.writeHead(200, { 'content-type': IMG_EXT_TYPE[im[3]], 'cache-control': 'private, max-age=86400' });
+        return fs.createReadStream(file).pipe(res);
+      }
       if (!u.pathname.startsWith('/api/')) return send(res, 404, 'not found');
       if (req.headers['x-tangent-token'] !== TOKEN) return send(res, 403, 'token');
 
@@ -443,7 +482,7 @@ function serve() {
 
       const m = u.pathname.match(/^\/api\/branch(?:\/([a-z0-9]+))?(?:\/(ask|terminal|summary))?$/);
       if (m) {
-        const body = req.method === 'GET' ? {} : await readBody(req);
+        const body = req.method === 'GET' ? {} : await readBody(req, 40e6);
         const sid = body.session || u.searchParams.get('session');
         if (!sid || !/^[0-9a-f-]{8,}$/i.test(sid)) return send(res, 400, 'session');
         const store = loadStore(sid);
@@ -451,7 +490,7 @@ function serve() {
 
         if (req.method === 'DELETE' && bid) {
           const gone = withDescendants(store.branches, bid);
-          for (const id of gone) deleted.add(id);
+          for (const id of gone) { deleted.add(id); fs.rmSync(imgDir(id), { recursive: true, force: true }); }
           store.branches = store.branches.filter((b) => !gone.has(b.id));
           saveStore(sid, store);
           return json(res, { ok: true });
@@ -484,7 +523,9 @@ function serve() {
         }
         if (req.method === 'POST' && (!bid || action === 'ask')) {
           const question = String(body.question || '').trim();
-          if (!question) return send(res, 400, 'Empty question.');
+          const images = validImages(body.images);
+          if (images === null) return send(res, 400, `Invalid images (up to ${MAX_IMAGES}: PNG, JPEG, GIF or WebP, each under 5 MB).`);
+          if (!question && !images.length) return send(res, 400, 'Empty question.');
           let b;
           if (!bid && body.parent) {
             // Branch of a branch
@@ -518,7 +559,9 @@ function serve() {
           if (pending.has(b.id)) return send(res, 409, 'This branch is still answering.');
           if (typeof body.readTools === 'boolean') b.readTools = body.readTools;
           if (typeof body.model === 'string' && MODELS.includes(body.model)) b.model = body.model;
-          b.messages.push({ role: 'user', text: question, time: new Date().toISOString() });
+          const userMsg = { role: 'user', text: question, time: new Date().toISOString() };
+          if (images.length) userMsg.images = saveImages(b.id, b.messages.length, images);
+          b.messages.push(userMsg);
           saveStore(sid, store);
 
           pending.add(b.id);
@@ -535,7 +578,8 @@ function serve() {
           send_({ type: 'branch', branch: b });
           // Session name shown in /resume. It may pass through a shell, so strip risky characters
           const name = ('tangent: ' + (b.selection || b.anchorPreview).replace(/\s+/g, ' ')).replace(/["'`$%!^&|<>\\]/g, '').slice(0, 34);
-          const r = await runClaude({ prompt: question, resumeId: b.sessionId, ctx: ctxFile(b.id), name, readTools: !!b.readTools, model: b.model || '' }, out);
+          const prompt = question || 'Look at the attached image' + (images.length > 1 ? 's' : '') + ' in the context above.';
+          const r = await runClaude({ prompt, resumeId: b.sessionId, ctx: ctxFile(b.id), name, readTools: !!b.readTools, model: b.model || '', images }, out);
           pending.delete(b.id);
           const fresh = loadStore(sid);
           let fb = fresh.branches.find((x) => x.id === b.id);
@@ -570,10 +614,10 @@ function serve() {
 
 function send(res, code, msg) { res.writeHead(code, { 'content-type': 'text/plain; charset=utf-8' }); res.end(msg); }
 function json(res, o) { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(o)); }
-function readBody(req) {
+function readBody(req, limit = 1e6) {
   return new Promise((resolve, reject) => {
     let d = ''; req.setEncoding('utf8');
-    req.on('data', (c) => { d += c; if (d.length > 1e6) { reject(new Error('too large')); req.destroy(); } });
+    req.on('data', (c) => { d += c; if (d.length > limit) { reject(new Error('too large')); req.destroy(); } });
     req.on('end', () => { try { resolve(d ? JSON.parse(d) : {}); } catch (e) { reject(e); } });
   });
 }

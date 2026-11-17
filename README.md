@@ -16,6 +16,7 @@ Tangent opens your current session in the browser. Highlight any sentence, click
 - **Focused context.** A branch sees only the selected text and the question/answer pair it came from, not your whole session.
 - **Streaming answers.** Follow-up questions in a branch remember the earlier ones.
 - **Branches are visible.** Branches grow as twigs off the conversation's trunk, and the sentences you branched from stay highlighted. Branches are saved, so they are still there next time.
+- **Images.** Paste a screenshot (Ctrl/Cmd+V), drop image files, or use the 📎 button: up to 4 images per question, resized to 1568px before sending. They show in the branch and are deleted with it.
 - **Read files (optional).** Flip the **Read files** switch and the branch can look at your project with `Read`, `Grep` and `Glob`, so it answers from the actual code. It still cannot edit anything or run commands, and files outside the project folder are refused. Each file it reads shows up as a chip above the answer.
 - **Bring it back.** When a branch reaches a conclusion, **Bring back** writes a short note (topic + bullet points) that you can edit, copy and paste into the main session. The summary runs on a throwaway copy, so the branch history stays clean.
 - **Live.** New messages in the main session appear automatically. No reload needed, and your scroll position and text selection are kept.

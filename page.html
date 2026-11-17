@@ -175,6 +175,18 @@ mark.twig-mark { background: var(--mark); color: inherit; border-bottom: 1.5px s
 @keyframes dot { 30% { opacity: 1; transform: translateY(-2px); } }
 
 .composer { border-top: 1px solid var(--line); padding: 12px 14px 14px; }
+.attach { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+.attach:empty { display: none; }
+.attach .th { position: relative; width: 64px; height: 64px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--sunken); }
+.attach .th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.attach .th button { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: rgba(31,30,29,.72); color: #fff; font-size: 12px; line-height: 20px; padding: 0; }
+.composer.dragging .box { border-color: var(--twig); box-shadow: 0 0 0 3px var(--accent-soft); border-style: dashed; }
+.clip { width: 30px; height: 34px; border: 0; background: none; color: var(--muted); display: grid; place-items: center; flex: none; border-radius: 8px; }
+.clip:hover { color: var(--accent-strong); background: var(--sunken); }
+.clip svg { width: 18px; height: 18px; }
+.bimgs { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 6px; }
+.bimgs a { display: block; }
+.bimgs img { max-width: 180px; max-height: 140px; border-radius: 10px; border: 1px solid var(--line); display: block; }
 .composer .box { border: 1px solid var(--line); border-radius: 14px; background: var(--bg); padding: 8px 8px 8px 12px; display: flex; gap: 8px; align-items: flex-end; }
 .composer .box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 textarea { flex: 1; border: 0; outline: none; resize: none; background: transparent; color: var(--text); font: inherit; font-size: 14px; line-height: 1.5; max-height: 180px; min-height: 22px; padding: 3px 0; box-shadow: none !important; }
@@ -265,7 +277,10 @@ select.mini { height: 24px; padding: 0 6px; font-size: 12px; border-radius: 6px;
       <div class="panel-head" id="panelHead"></div>
       <div class="panel-body" id="panelBody"></div>
       <div class="composer hidden" id="composer">
+        <div class="attach" id="attachRow"></div>
         <div class="box">
+          <button class="clip" id="attachBtn" data-i18n-title="attachTitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/></svg></button>
+          <input type="file" id="fileInput" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
           <textarea id="input" rows="1" data-i18n-placeholder="askPlaceholder"></textarea>
           <button class="send" id="send" data-i18n-title="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
@@ -304,7 +319,8 @@ setInterval(() => api('/api/ping', { method: 'POST' }).catch(() => {}), 60000);
 const I18N = {
   en: {
     search: 'Search conversation', session: 'Session', reload: 'Reload conversation', theme: 'Theme', language: 'Language',
-    askPlaceholder: 'Ask about this part', send: 'Send (Enter)', keysHint: 'Enter to send', shortcuts: 'Enter send · Shift+Enter newline · B branch from selection · / search · Esc back',
+    askPlaceholder: 'Ask about this part',
+    attachTitle: 'Attach images (or paste / drop them)', removeImage: 'Remove image', tooManyImages: 'Up to 4 images per question', imageTooLarge: 'Image is too large (max 5 MB after resizing)', send: 'Send (Enter)', keysHint: 'Enter to send', shortcuts: 'Enter send · Shift+Enter newline · B branch from selection · / search · Esc back',
     toTerminal: 'Continue in terminal', toTerminalTitle: 'Continue this branch as a regular Claude Code session (tools available)',
     branch: 'Branch', branchMsg: 'Branch', branchMsgTitle: 'Branch from this whole message',
     you: 'You', noMessages: 'No messages to show.', noSessions: 'No Claude Code sessions found for this folder.',
@@ -331,7 +347,8 @@ const I18N = {
   },
   ko: {
     search: '대화 검색', session: '세션', reload: '대화 다시 읽기', theme: '테마', language: '언어',
-    askPlaceholder: '이 부분에 대해 물어보세요', send: '보내기 (Enter)', keysHint: 'Enter 보내기', shortcuts: 'Enter 보내기 · Shift+Enter 줄바꿈 · B 선택한 문장으로 가지 치기 · / 검색 · Esc 뒤로',
+    askPlaceholder: '이 부분에 대해 물어보세요',
+    attachTitle: '이미지 첨부 (붙여넣기·끌어놓기도 됩니다)', removeImage: '이미지 빼기', tooManyImages: '질문 하나에 이미지는 4장까지입니다', imageTooLarge: '이미지가 너무 큽니다 (줄인 뒤 5MB 이하)', send: '보내기 (Enter)', keysHint: 'Enter 보내기', shortcuts: 'Enter 보내기 · Shift+Enter 줄바꿈 · B 선택한 문장으로 가지 치기 · / 검색 · Esc 뒤로',
     toTerminal: '터미널에서 이어가기', toTerminalTitle: '이 가지를 터미널 Claude 로 이어가기 (도구 사용 가능)',
     branch: '가지 치기', branchMsg: '가지', branchMsgTitle: '이 메시지 전체로 가지 치기',
     you: '나', noMessages: '표시할 메시지가 없습니다.', noSessions: '이 폴더에는 Claude Code 세션 기록이 없습니다.',
@@ -626,7 +643,7 @@ function renderPanel() {
   let html = anchorQuote(b);
   b.messages.forEach((m, k) => {
     // data-m lets a selection inside a branch message start a nested branch
-    if (m.role === 'user') html += `<div class="bmsg user" data-m="${k}"><div class="b">${esc(m.text)}</div></div>`;
+    if (m.role === 'user') html += `<div class="bmsg user" data-m="${k}" style="flex-direction:column;align-items:flex-end">${imagesHtml(b, m.images)}${m.text ? `<div class="b">${esc(m.text)}</div>` : ''}</div>`;
     else if (m.role === 'error') html += `<div class="bmsg error"><div class="b">${esc(m.text)}</div></div>`;
     else html += `<div class="bmsg assistant" data-m="${k}">${chipsHtml(m.tools)}<div class="b md">${md(m.text)}</div></div>`;
   });
@@ -669,7 +686,7 @@ function exportBranch(b) {
     `_Tangent branch · ${new Date(b.createdAt || Date.now()).toLocaleString(LOCALE())} · session ${state.session}_`, ''];
   for (const m of b.messages) {
     if (m.role === 'error') continue;
-    if (m.role === 'user') L.push(`**${t('you')}:** ${m.text}`, '');
+    if (m.role === 'user') L.push(`**${t('you')}:** ${m.text}${m.images && m.images.length ? ` _[${m.images.length} image${m.images.length > 1 ? 's' : ''}]_` : ''}`, '');
     else {
       L.push('**Claude:**', '');
       if (m.tools && m.tools.length) L.push('_' + m.tools.map((x) => `${x.name} ${x.detail || ''}`.trim()).join(', ') + '_', '');
@@ -711,7 +728,7 @@ function gotoMsg(i, instant) {
 async function sendQuestion() {
   const input = $('#input');
   const question = input.value.trim();
-  if (!question) return;
+  if (!question && !attach.length) return;
   const draft = state.draft;
   const b = draft || state.branches.find((x) => x.id === state.open);
   if (!b) return;
@@ -722,14 +739,16 @@ async function sendQuestion() {
   const readTools = $('#readTools').checked;
   const model = $('#modelSel').value;
   b.readTools = readTools; b.model = model;
-  b.messages.push({ role: 'user', text: question });
+  const sent = attach.splice(0); renderAttach();
+  const images = sent.map((a) => ({ media_type: a.media_type, data: a.data }));
+  b.messages.push({ role: 'user', text: question, images: sent.map((a) => a.url) });
   b._streaming = ''; b._tools = [];
   renderPanel();
 
   const url = draft ? '/api/branch' : `/api/branch/${b.id}/ask`;
-  const payload = !draft ? { session: state.session, question, readTools, model }
-    : b.parent ? { session: state.session, parent: b.parent, parentMsg: b.parentMsg, selection: b.selection, question, readTools, model }
-    : { session: state.session, anchor: b.anchor, selection: b.selection, question, readTools, model };
+  const payload = !draft ? { session: state.session, question, readTools, model, images }
+    : b.parent ? { session: state.session, parent: b.parent, parentMsg: b.parentMsg, selection: b.selection, question, readTools, model, images }
+    : { session: state.session, anchor: b.anchor, selection: b.selection, question, readTools, model, images };
   let current = b, raf = 0, streamed = false;
   const sess = state.session; // results for another session must not leak into the one now on screen
   const here = () => state.session === sess;
@@ -774,6 +793,7 @@ async function sendQuestion() {
       // in step with the server, and give the question back so it isn't lost
       b.messages.pop();
       if (!$('#input').value) { $('#input').value = question; autosize(); }
+      if (!attach.length) { attach.push(...sent); renderAttach(); } // give the images back too
     }
     toast(String(e.message || e).slice(0, 160));
     if (streamed && here()) await resyncBranches();
@@ -948,6 +968,60 @@ document.addEventListener('click', async (e) => {
 const input = $('#input');
 function autosize() { input.style.height = 'auto'; input.style.height = Math.min(180, input.scrollHeight) + 'px'; }
 input.addEventListener('input', autosize);
+
+/* ---------- image attachments: paste, drop or the clip button; shrunk to at most 1568px before sending ---------- */
+const MAX_IMAGES = 4, MAX_EDGE = 1568, IMG_OK = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+const attach = []; // { media_type, data (base64), url (object URL for preview) }
+function imgSrc(b, name) { return /^(blob|data):/.test(name) ? name : `/img/${b.id}/${encodeURIComponent(name)}?t=${BOOT.token}`; }
+function imagesHtml(b, list) {
+  if (!list || !list.length) return '';
+  return '<div class="bimgs">' + list.map((n) => { const src = esc(imgSrc(b, n)); return `<a href="${src}" target="_blank" rel="noopener"><img src="${src}" alt=""></a>`; }).join('') + '</div>';
+}
+function renderAttach() {
+  $('#attachRow').innerHTML = attach.map((a, i) => `<div class="th"><img src="${esc(a.url)}" alt=""><button data-unattach="${i}" title="${esc(t('removeImage'))}">✕</button></div>`).join('');
+}
+async function toPayload(file) {
+  // Shrink big images (Claude downsizes past ~1568px anyway) and keep each request small
+  let blob = file, type = file.type;
+  const bmp = await createImageBitmap(file).catch(() => null);
+  if (bmp && (Math.max(bmp.width, bmp.height) > MAX_EDGE || file.size > 3.5e6 || type === 'image/gif')) {
+    const k = Math.min(1, MAX_EDGE / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    type = type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+    blob = await new Promise((r) => c.toBlob(r, type, 0.9));
+  }
+  if (!blob || blob.size > 5e6) throw new Error(t('imageTooLarge'));
+  const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+  return { media_type: type, data, url: URL.createObjectURL(blob) };
+}
+async function addImages(files) {
+  const list = [...files].filter((x) => IMG_OK.includes(x.type));
+  if (!list.length) return false;
+  for (const file of list) {
+    if (attach.length >= MAX_IMAGES) { toast(t('tooManyImages')); break; }
+    try { attach.push(await toPayload(file)); } catch (e) { toast(String(e.message || e)); }
+  }
+  renderAttach(); input.focus();
+  return true;
+}
+input.addEventListener('paste', (e) => {
+  const files = [...(e.clipboardData?.items || [])].filter((it) => it.kind === 'file').map((it) => it.getAsFile()).filter(Boolean);
+  if (files.some((x) => IMG_OK.includes(x.type))) { e.preventDefault(); addImages(files); }
+});
+$('#attachBtn').addEventListener('click', () => $('#fileInput').click());
+$('#fileInput').addEventListener('change', (e) => { addImages(e.target.files); e.target.value = ''; });
+$('#attachRow').addEventListener('click', (e) => {
+  const x = e.target.closest('[data-unattach]');
+  if (!x) return;
+  const [a] = attach.splice(Number(x.dataset.unattach), 1);
+  if (a) URL.revokeObjectURL(a.url);
+  renderAttach();
+});
+const comp = $('#composer');
+['dragenter', 'dragover'].forEach((ev) => $('#panel').addEventListener(ev, (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); comp.classList.add('dragging'); } }));
+['dragleave', 'drop'].forEach((ev) => $('#panel').addEventListener(ev, () => comp.classList.remove('dragging')));
+$('#panel').addEventListener('drop', (e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); if (!comp.classList.contains('hidden')) addImages(e.dataTransfer.files); } });
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); sendQuestion(); }
 });
