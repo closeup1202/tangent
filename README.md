@@ -2,6 +2,8 @@
 
 **Go off on a tangent without derailing your Claude Code session.**
 
+[![test](https://github.com/closeup1202/tangent/actions/workflows/test.yml/badge.svg)](https://github.com/closeup1202/tangent/actions/workflows/test.yml)
+
 English | [한국어](README.ko.md)
 
 ![Select a sentence, click Branch, ask a side question; the answer streams in the side panel and a twig grows from the main thread](docs/demo.gif)
@@ -107,6 +109,14 @@ All settings are optional environment variables.
 - **Branches are ordinary Claude Code sessions.** They run with `claude -p --tools "" --strict-mcp-config`, or with `--tools Read,Grep,Glob` when **Read files** is on. The first message gets the picked context through `--append-system-prompt-file`, and follow-ups use `--resume`. Branches count toward your normal Claude usage.
 - **Branch data lives outside the repo,** in `~/.claude/tangent/data/`. It contains conversation text.
 
+## Development
+
+```bash
+npm test
+```
+
+The tests start real Tangent servers against a fake `claude` (`test/support/fake-claude.mjs`) and temporary folders, so they need no network and use no Claude quota. CI runs them on Linux, macOS and Windows. See [CHANGELOG.md](CHANGELOG.md) for what changed.
+
 ## Security
 
 - The server listens only on `127.0.0.1`. It uses a random token per launch and checks the `Host` and `Origin` headers. One server runs per project folder.
@@ -115,7 +125,7 @@ All settings are optional environment variables.
 
 ## Limitations
 
-- **Tangent depends on Claude Code's internal session format.** A Claude Code update could break parsing. All format-specific code is in the "session reading" section of `server.mjs`.
+- **Tangent depends on Claude Code's internal session format.** A Claude Code update could break parsing; Tangent then shows a warning instead of an empty page. All format-specific code is in the "session reading" section of `server.mjs`, and the tests describe the format it expects.
 - **Tested on Windows and macOS.** On Linux the browser part works. If no terminal can be opened, the command is copied for you instead.
 - **If `claude` was installed through npm on Windows** (`claude.cmd`), it runs through the shell.
 

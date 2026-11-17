@@ -2,6 +2,8 @@
 
 **Claude Code 대화의 흐름을 깨지 않고 곁가지 질문하기**
 
+[![test](https://github.com/closeup1202/tangent/actions/workflows/test.yml/badge.svg)](https://github.com/closeup1202/tangent/actions/workflows/test.yml)
+
 [English](README.md) | 한국어
 
 ![문장을 골라 가지 치기를 누르고 곁가지 질문을 하면, 옆 패널에 답이 나오고 본 대화 줄기에 가지가 생깁니다](docs/demo.gif)
@@ -107,6 +109,14 @@ node install.mjs
 - **가지 대화:** `claude -p --tools "" --strict-mcp-config`로 실행합니다(**파일 읽기**를 켜면 `--tools Read,Grep,Glob`). 첫 질문에는 `--append-system-prompt-file`로 맥락을 넣고, 이어지는 질문은 `--resume`으로 보냅니다. 가지 대화도 Claude Code 세션으로 저장되므로 구독 사용량을 씁니다.
 - **가지 기록:** `~/.claude/tangent/data/`에 저장합니다. 대화 내용이 들어 있으니 레포에 넣지 않습니다.
 
+## 개발
+
+```bash
+npm test
+```
+
+테스트는 가짜 `claude`(`test/support/fake-claude.mjs`)와 임시 폴더로 실제 Tangent 서버를 띄워서 확인합니다. 네트워크를 쓰지 않고 Claude 사용량도 들지 않습니다. CI가 Linux, macOS, Windows에서 돌립니다. 변경 내역은 [CHANGELOG.md](CHANGELOG.md)에 있습니다.
+
 ## 보안
 
 - 서버는 `127.0.0.1`에만 열리고, 실행할 때마다 임의 토큰을 씁니다. Host와 Origin 헤더도 검사합니다. 프로젝트 폴더마다 서버는 하나만 뜹니다.
@@ -115,7 +125,7 @@ node install.mjs
 
 ## 한계
 
-- **Claude Code 내부 세션 파일 형식에 기댑니다.** 형식이 바뀌면 메시지를 못 읽을 수 있습니다. 형식을 읽는 코드는 `server.mjs`의 "session reading" 부분에 모아 두었습니다.
+- **Claude Code 내부 세션 파일 형식에 기댑니다.** 형식이 바뀌면 메시지를 못 읽을 수 있고, 그때는 빈 화면 대신 안내가 나옵니다. 형식을 읽는 코드는 `server.mjs`의 "session reading" 부분에 모아 두었습니다.
 - **Windows와 macOS에서 확인했습니다.** Linux는 브라우저 쪽은 되지만, 터미널을 열지 못하면 대신 명령을 복사해 줍니다.
 - Windows에서 `claude`가 npm으로 설치돼 있으면(`claude.cmd`) 셸을 거쳐 실행합니다.
 

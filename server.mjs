@@ -22,7 +22,8 @@ const SELF = fileURLToPath(import.meta.url);
 const ROOT = path.dirname(SELF);
 const HOME = os.homedir();
 const DATA = process.env.TANGENT_DATA || path.join(HOME, '.claude', 'tangent', 'data');
-const PROJ = path.join(HOME, '.claude', 'projects');
+// Claude Code's config folder (CLAUDE_CONFIG_DIR, as Claude Code itself honours it); sessions live in its projects/
+const PROJ = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(HOME, '.claude'), 'projects');
 const IDLE_MS = 10 * 60 * 1000;
 // Single source of truth for the version: the plugin manifest
 const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, '.claude-plugin', 'plugin.json'), 'utf8')).version || ''; } catch { return ''; } })();
@@ -214,6 +215,8 @@ function killTree(p) {
 }
 
 function spawnClaude(args, opts) {
+  // A JavaScript file is run with this Node (used by the tests' fake claude; works the same on every OS)
+  if (/.(m|c)?js$/i.test(CLAUDE_BIN)) return spawn(process.execPath, [CLAUDE_BIN, ...args], opts);
   if (IS_WIN && /\.(cmd|bat)$/i.test(CLAUDE_BIN)) {
     const q = (a) => '"' + String(a).replace(/"/g, '""') + '"';
     return spawn([q(CLAUDE_BIN), ...args.map(q)].join(' '), { ...opts, shell: true });
@@ -247,7 +250,7 @@ function loadSession(id) {
   let c = sessCache.get(id);
   if (c && st.size === c.size && st.mtimeMs === c.mtime) return c;
   if (!c || st.size < c.offset) { // first read, or the file was rewritten: start over
-    c = { size: 0, mtime: 0, offset: 0, partial: Buffer.alloc(0), items: [], lastId: null, title: '', spec: null, specFallback: null };
+    c = { size: 0, mtime: 0, offset: 0, partial: Buffer.alloc(0), items: [], lastId: null, title: '', spec: null, specFallback: null, lines: 0 };
     sessCache.set(id, c);
   }
   let pos = c.offset;
@@ -265,6 +268,7 @@ function loadSession(id) {
 }
 
 function ingestLine(c, line) {
+  if (line.trim()) c.lines++;
   if (line.startsWith('{"type":"ai-title"')) { try { c.title = JSON.parse(line).aiTitle || c.title; } catch {} return; }
   if (line.startsWith('{"type":"api-request"')) {
     // Each main-thread request records the model and effort the main conversation used
@@ -760,8 +764,10 @@ function serve() {
       }
       if (req.method === 'GET' && u.pathname === '/api/thread') {
         const sid = u.searchParams.get('session');
-        const items = parseSession(sid);
-        return json(res, { session: sid, title: sessionTitle(path.join(projDir, sid + '.jsonl')), items, branches: loadStore(sid).branches, mainSpec: mainSpec(sid) });
+        const c = loadSession(sid);
+        // Plenty of log lines but not one readable message: Claude Code most likely changed its log format
+        const formatWarning = c.lines >= 20 && c.items.length === 0;
+        return json(res, { session: sid, title: sessionTitle(path.join(projDir, sid + '.jsonl')), items: c.items, branches: loadStore(sid).branches, mainSpec: mainSpec(sid), formatWarning });
       }
 
       const m = u.pathname.match(/^\/api\/branch(?:\/([a-z0-9]+))?(?:\/(ask|terminal|summary|note|note-save))?$/);

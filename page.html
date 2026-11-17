@@ -337,7 +337,7 @@ const I18N = {
     attachTitle: 'Attach images (or paste / drop them)', removeImage: 'Remove image', tooManyImages: 'Up to 4 images per question', imageTooLarge: 'Image is too large (max 5 MB after resizing)', send: 'Send (Enter)', keysHint: 'Enter to send', shortcuts: 'Enter send · Shift+Enter newline · B branch from selection · / search · Esc back',
     toTerminal: 'Continue in terminal', toTerminalTitle: 'Continue this branch as a regular Claude Code session (tools available)',
     branch: 'Branch', branchMsg: 'Branch', branchMsgTitle: 'Branch from this whole message',
-    you: 'You', noMessages: 'No messages to show.', noSessions: 'No Claude Code sessions found for this folder.',
+    you: 'You', noMessages: 'No messages to show.', formatWarning: 'Tangent could not read any messages from this session. Claude Code may have changed its log format. Please open an issue at github.com/closeup1202/tangent with the output of <code>claude --version</code>.', noSessions: 'No Claude Code sessions found for this folder.',
     gotoSource: 'Jump to the original message', yourQuestion: 'your question', claudeAnswer: "Claude's answer",
     excerpt: (src) => `Excerpt from ${src}`, whole: (src) => src.charAt(0).toUpperCase() + src.slice(1),
     branches: 'Branches', close: 'Close', back: 'All branches', deleteBranch: 'Delete branch', newBranch: 'New branch',
@@ -367,7 +367,7 @@ const I18N = {
     attachTitle: '이미지 첨부 (붙여넣기·끌어놓기도 됩니다)', removeImage: '이미지 빼기', tooManyImages: '질문 하나에 이미지는 4장까지입니다', imageTooLarge: '이미지가 너무 큽니다 (줄인 뒤 5MB 이하)', send: '보내기 (Enter)', keysHint: 'Enter 보내기', shortcuts: 'Enter 보내기 · Shift+Enter 줄바꿈 · B 선택한 문장으로 가지 치기 · / 검색 · Esc 뒤로',
     toTerminal: '터미널에서 이어가기', toTerminalTitle: '이 가지를 터미널 Claude 로 이어가기 (도구 사용 가능)',
     branch: '가지 치기', branchMsg: '가지', branchMsgTitle: '이 메시지 전체로 가지 치기',
-    you: '나', noMessages: '표시할 메시지가 없습니다.', noSessions: '이 폴더에는 Claude Code 세션 기록이 없습니다.',
+    you: '나', noMessages: '표시할 메시지가 없습니다.', formatWarning: '이 세션에서 메시지를 하나도 읽지 못했습니다. Claude Code 기록 형식이 바뀌었을 수 있습니다. <code>claude --version</code> 결과와 함께 github.com/closeup1202/tangent 에 이슈를 남겨 주세요.', noSessions: '이 폴더에는 Claude Code 세션 기록이 없습니다.',
     gotoSource: '원래 위치로 이동', yourQuestion: '내 질문', claudeAnswer: 'Claude 답변',
     excerpt: (src) => `${src}의 일부`, whole: (src) => src,
     branches: '가지 목록', close: '닫기', back: '가지 목록', deleteBranch: '가지 삭제', newBranch: '새 가지',
@@ -556,7 +556,7 @@ function renderThread(keepScroll) {
   const wrap = $('#threadWrap'), prev = wrap.scrollTop;
   const q = $('#search').value.trim().toLowerCase();
   const html = state.items.map((it) => rowHtml(it, q)).join('');
-  $('#thread').innerHTML = html || '<div class="empty">' + t('noMessages') + '</div>';
+  $('#thread').innerHTML = html || '<div class="empty">' + (state.formatWarning ? t('formatWarning') : t('noMessages')) + '</div>';
   markSelections();
   if (keepScroll) wrap.scrollTop = prev;
 }
@@ -636,7 +636,7 @@ async function loadThread(scrollBottom) {
   if (sess !== state.session) return; // the user switched sessions meanwhile
   live.held = null;
   live.mtime = st.mtime; live.size = st.size;
-  state.items = data.items; state.branches = data.branches; state.mainSpec = data.mainSpec || {};
+  state.items = data.items; state.branches = data.branches; state.mainSpec = data.mainSpec || {}; state.formatWarning = !!data.formatWarning;
   $('#sessionTitle').textContent = data.title || '';
   renderThread(!scrollBottom);
   if (scrollBottom) { const w = $('#threadWrap'); w.style.scrollBehavior = 'auto'; w.scrollTop = w.scrollHeight; w.style.scrollBehavior = ''; }

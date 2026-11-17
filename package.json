@@ -1,0 +1,11 @@
+{
+  "name": "tangent",
+  "private": true,
+  "description": "Branch side-chats off any sentence of your Claude Code session, in a local browser view.",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test test/session.test.mjs test/branch.test.mjs test/notes.test.mjs test/server.test.mjs test/install.test.mjs"
+  }
+}
