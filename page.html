@@ -1094,9 +1094,10 @@ function resolveSpec(model, effort) {
   if (model === '@main' && state.mainSpec?.model) return { name: labelOf(state.mainSpec.model), effort: effort || state.mainSpec.effort || '' };
   if (model === '@main') model = ''; // main conversation's model unknown: same as the Claude Code default
   const m = MODELS.find((x) => x.value === model) || (!model && MODELS.find((x) => x.isDefault));
-  if (!m) return { name: model || t('cliDefault'), effort };
+  if (!m) return { name: model ? prettyAlias(model) : t('cliDefault'), effort };
   return { name: m.label + (m.ctx1m ? ' 1M' : ''), effort: effort || m.defaultEffort };
 }
+const prettyAlias = (a) => a.replace(/\[1m\]$/i, ' 1M').replace(/^./, (c) => c.toUpperCase());
 function renderModelBtn() {
   const r = resolveSpec(pick.model, pick.effort);
   $('#modelBtn').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>${esc((pick.model === '@main' ? t('mainShort') + ' · ' : '') + r.name + (r.effort ? ' · ' + r.effort : ''))}`;
@@ -1245,7 +1246,7 @@ $('#lang').addEventListener('click', () => {
 /* ---------- start ---------- */
 applyI18n();
 if (BOOT && BOOT.version) $('#ver').textContent = 'v' + BOOT.version;
-loadModels();
+// The model list is probed only when the picker is first opened (it starts claude processes)
 (async () => {
   try {
     // #s=<session> picks the session (used when /tg reuses an already running server)

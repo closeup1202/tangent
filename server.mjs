@@ -200,6 +200,12 @@ function findClaude() {
   return 'claude';
 }
 const CLAUDE_BIN = findClaude();
+function killTree(p) {
+  if (!p || p.exitCode !== null || p.killed) return;
+  if (IS_WIN) { try { spawn('taskkill', ['/pid', String(p.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }).on('error', () => {}); } catch {} }
+  else { try { p.kill('SIGTERM'); } catch {} }
+}
+
 function spawnClaude(args, opts) {
   if (IS_WIN && /\.(cmd|bat)$/i.test(CLAUDE_BIN)) {
     const q = (a) => '"' + String(a).replace(/"/g, '""') + '"';
@@ -456,7 +462,7 @@ function probeModel(alias) {
     if (alias !== 'default') args.push('--model', alias);
     const p = spawnClaude(args, { cwd: CWD, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
     let buf = '', done = false;
-    const finish = (id) => { if (done) return; done = true; clearTimeout(timer); try { p.kill(); } catch {} resolve(id); };
+    const finish = (id) => { if (done) return; done = true; clearTimeout(timer); killTree(p); resolve(id); };
     const timer = setTimeout(() => finish(null), 20000);
     p.stdout.setEncoding('utf8');
     p.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const l = buf.slice(0, i); buf = buf.slice(i + 1); try { const o = JSON.parse(l); if (o.type === 'system' && o.subtype === 'init') finish(o.model || null); } catch {} } });
@@ -466,14 +472,39 @@ function probeModel(alias) {
     p.stdin.end('.');
   });
 }
+// Claude Code's version, used as the key of the on-disk model cache
+function claudeVersion() {
+  return new Promise((resolve) => {
+    let out = '';
+    const p = spawnClaude(['--version'], { cwd: CWD, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+    const timer = setTimeout(() => { killTree(p); resolve(''); }, 10000);
+    p.stdout.setEncoding('utf8'); p.stdout.on('data', (d) => (out += d));
+    p.on('error', () => { clearTimeout(timer); resolve(''); });
+    p.on('close', () => { clearTimeout(timer); resolve(out.trim()); });
+  });
+}
+// The model list only changes with Claude Code updates (or account changes), so it is cached on disk
+// per Claude Code version for a week, and probed at most four processes at a time.
 function listModels() {
-  modelsCache ||= Promise.all(MODEL_ALIASES.map(async (alias) => {
-    const id = await probeModel(alias);
-    if (!id) return null;
-    const ctx1m = alias.endsWith('[1m]');
-    const e = effortInfo(id);
-    return { value: alias === 'default' ? '' : alias, id, label: modelLabel(id), ctx1m, isDefault: alias === 'default', efforts: e.levels, defaultEffort: e.def };
-  })).then((list) => list.filter(Boolean)).catch(() => []);
+  modelsCache ||= (async () => {
+    const cacheFile = path.join(DATA, 'models.json');
+    const version = await claudeVersion();
+    try {
+      const c = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      if (version && c.version === version && Date.now() - c.at < 7 * 864e5 && c.models?.length) return c.models;
+    } catch {}
+    const ids = [];
+    for (let k = 0; k < MODEL_ALIASES.length; k += 4) ids.push(...await Promise.all(MODEL_ALIASES.slice(k, k + 4).map(probeModel)));
+    const models = MODEL_ALIASES.map((alias, k) => {
+      const id = ids[k];
+      if (!id) return null;
+      const e = effortInfo(id);
+      return { value: alias === 'default' ? '' : alias, id, label: modelLabel(id), ctx1m: alias.endsWith('[1m]'), isDefault: alias === 'default', efforts: e.levels, defaultEffort: e.def };
+    }).filter(Boolean);
+    if (models.length && version) { try { fs.writeFileSync(cacheFile, JSON.stringify({ version, at: Date.now(), models })); } catch {} }
+    if (!models.length) modelsCache = null; // try again next time
+    return models;
+  })().catch(() => { modelsCache = null; return []; });
   return modelsCache;
 }
 
