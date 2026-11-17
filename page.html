@@ -570,11 +570,16 @@ async function pollLive() {
   live.busy = true;
   const sess = state.session; // drop the result if the user switches session while this poll is in flight
   try {
+    // Items fetched earlier but held back because the user was selecting text: apply them first, no refetch
+    if (live.held && live.held.sess === sess && applyThread(live.held.items)) live.held = null;
     const s = await (await api('/api/stat?session=' + encodeURIComponent(sess))).json();
     if (sess === state.session && (s.mtime !== live.mtime || s.size !== live.size)) {
       const data = await (await api('/api/thread?session=' + encodeURIComponent(sess))).json();
-      if (sess === state.session) state.mainSpec = data.mainSpec || state.mainSpec;
-      if (sess === state.session && applyThread(data.items)) { live.mtime = s.mtime; live.size = s.size; $('#sessionTitle').textContent = data.title || ''; }
+      if (sess === state.session) {
+        state.mainSpec = data.mainSpec || state.mainSpec;
+        live.mtime = s.mtime; live.size = s.size; $('#sessionTitle').textContent = data.title || '';
+        live.held = applyThread(data.items) ? null : { sess, items: data.items };
+      }
     }
     $('#liveDot').classList.remove('off');
   } catch { $('#liveDot').classList.add('off'); }

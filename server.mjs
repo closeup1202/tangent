@@ -189,54 +189,138 @@ function spawnClaude(args, opts) {
 
 // ---------------------------------------------------------------- session reading
 // Everything that depends on Claude Code's internal format (~/.claude/projects/<folder>/<session>.jsonl) lives here.
+// Incremental reader. Session logs grow to tens of MB, and the page polls while the main session is
+// active, so each file is parsed once and afterwards only the bytes appended since the last read are
+// processed. Titles and the main conversation's model/effort are picked up on the way.
+const sessCache = new Map(); // id -> { size, mtime, offset, partial, items, lastId, title, spec, specFallback }
+const CHUNK = 8 * 1024 * 1024;
+
+function sessionFile(id) { return /^[0-9a-f-]{8,}$/i.test(id || '') ? path.join(projDir, id + '.jsonl') : null; }
+function readRange(file, start, end) {
+  const fd = fs.openSync(file, 'r');
+  try {
+    const buf = Buffer.alloc(end - start);
+    let off = 0;
+    while (off < buf.length) { const n = fs.readSync(fd, buf, off, buf.length - off, start + off); if (!n) break; off += n; }
+    return buf.subarray(0, off);
+  } finally { fs.closeSync(fd); }
+}
+
+function loadSession(id) {
+  const file = sessionFile(id);
+  if (!file || !fs.existsSync(file)) throw new Error('Session not found: ' + id);
+  const st = fs.statSync(file);
+  let c = sessCache.get(id);
+  if (c && st.size === c.size && st.mtimeMs === c.mtime) return c;
+  if (!c || st.size < c.offset) { // first read, or the file was rewritten: start over
+    c = { size: 0, mtime: 0, offset: 0, partial: Buffer.alloc(0), items: [], lastId: null, title: '', spec: null, specFallback: null };
+    sessCache.set(id, c);
+  }
+  let pos = c.offset;
+  while (pos < st.size) {
+    let buf = readRange(file, pos, Math.min(st.size, pos + CHUNK));
+    if (!buf.length) break;
+    pos += buf.length;
+    if (c.partial.length) buf = Buffer.concat([c.partial, buf]);
+    let start = 0, nl;
+    while ((nl = buf.indexOf(10, start)) !== -1) { ingestLine(c, buf.toString('utf8', start, nl)); start = nl + 1; }
+    c.partial = Buffer.from(buf.subarray(start)); // the unfinished last line, kept as bytes so UTF-8 is never split
+  }
+  c.offset = pos; c.size = st.size; c.mtime = st.mtimeMs;
+  return c;
+}
+
+function ingestLine(c, line) {
+  if (line.startsWith('{"type":"ai-title"')) { try { c.title = JSON.parse(line).aiTitle || c.title; } catch {} return; }
+  if (line.startsWith('{"type":"api-request"')) {
+    // Each main-thread request records the model and effort the main conversation used
+    if (line.includes('"repl_main_thread"')) {
+      const m = line.match(/"model":"([^"]+)"/);
+      c.spec = { model: m ? m[1] : '', effort: (line.match(/"effort":"(low|medium|high|xhigh|max)"/) || [])[1] || '' };
+    }
+    return;
+  }
+  if (!line.includes('"type":"user"') && !line.includes('"type":"assistant"')) return;
+  let o; try { o = JSON.parse(line); } catch { return; }
+  if ((o.type !== 'user' && o.type !== 'assistant') || o.isSidechain || o.isMeta || o.isCompactSummary) return;
+  if (o.type === 'assistant' && o.message?.model) c.specFallback = { model: o.message.model, effort: '' };
+  const content = o.message?.content;
+  let text = '';
+  if (typeof content === 'string') text = content;
+  else if (Array.isArray(content)) {
+    text = content.filter((b) => b?.type === 'text').map((b) => b.text).join('\n');
+    if (o.type === 'user' && content.some((b) => b?.type === 'image')) text = (text + '\n[image]').trim();
+  }
+  const time = o.timestamp || '';
+  if (o.type === 'user') {
+    const t = cleanUser(text);
+    if (!t) return;
+    c.items.push({ i: c.items.length, role: 'user', time, text: t });
+    c.lastId = null;
+  } else {
+    // One response is stored as several lines split around tool calls; merge lines with the same message.id
+    const t = text.trim();
+    if (!t) return;
+    const mid = o.message?.id;
+    const last = c.items[c.items.length - 1];
+    if (mid && mid === c.lastId && last) c.items[c.items.length - 1] = { ...last, text: last.text + '\n\n' + t };
+    else c.items.push({ i: c.items.length, role: 'assistant', time, text: t });
+    c.lastId = mid;
+  }
+}
+
+function parseSession(id) { return loadSession(id).items; }
+// The model and effort the main conversation used for its latest request
+function mainSpec(sid) { try { const c = loadSession(sid); return c.spec || c.specFallback || { model: '', effort: '' }; } catch { return { model: '', effort: '' }; } }
+
+// Titles for the session list without reading whole files: the cache if the session is loaded,
+// otherwise scan for "ai-title" lines (newest near the end), remembered per (size, mtime).
+const titleCache = new Map();
+function sessionTitle(file) {
+  const id = path.basename(file, '.jsonl');
+  let st; try { st = fs.statSync(file); } catch { return ''; }
+  const c = sessCache.get(id);
+  if (c && c.size === st.size && c.mtime === st.mtimeMs) return c.title;
+  const t = titleCache.get(id);
+  if (t && t.size === st.size && t.mtime === st.mtimeMs) return t.title;
+  const marker = Buffer.from('{"type":"ai-title"');
+  const lastTitleIn = (buf) => {
+    let at = buf.lastIndexOf(marker), title = '';
+    while (at !== -1 && !title) {
+      const end = buf.indexOf(10, at);
+      try { title = JSON.parse(buf.toString('utf8', at, end === -1 ? buf.length : end)).aiTitle || ''; } catch {}
+      at = at > 0 ? buf.lastIndexOf(marker, at - 1) : -1;
+    }
+    return title;
+  };
+  let title = '';
+  try {
+    for (let end = st.size; end > 0 && !title; end -= CHUNK) {  // walk backwards; usually done in the first chunk
+      const start = Math.max(0, end - CHUNK - 4096);              // small overlap so a line on the boundary isn't cut
+      title = lastTitleIn(readRange(file, start, end));
+    }
+  } catch {}
+  titleCache.set(id, { size: st.size, mtime: st.mtimeMs, title });
+  return title;
+}
+
 function listSessions() {
   let files = [];
   try { files = fs.readdirSync(projDir).filter((f) => f.endsWith('.jsonl')); } catch { return []; }
   const branchIds = new Set();
   for (const f of safeReaddir(DATA)) {
-    if (!f.endsWith('.json') || f.startsWith('launch-')) continue;
+    if (!f.endsWith('.json') || f.startsWith('launch-') || f.startsWith('run-') || f === 'models.json') continue;
     try { for (const b of JSON.parse(fs.readFileSync(path.join(DATA, f), 'utf8')).branches || []) if (b.sessionId) branchIds.add(b.sessionId); } catch {}
   }
   return files
-    .map((f) => ({ id: f.slice(0, -6), mtime: fs.statSync(path.join(projDir, f)).mtimeMs }))
-    .filter((s) => !branchIds.has(s.id))
+    .map((f) => { try { return { id: f.slice(0, -6), mtime: fs.statSync(path.join(projDir, f)).mtimeMs }; } catch { return null; } })
+    .filter((x) => x && !branchIds.has(x.id))
     .sort((a, b) => b.mtime - a.mtime)
     .slice(0, 25)
-    .map((s) => ({ ...s, title: sessionTitle(path.join(projDir, s.id + '.jsonl')) }));
+    .map((x) => ({ ...x, title: sessionTitle(path.join(projDir, x.id + '.jsonl')) }));
 }
 
 function safeReaddir(d) { try { return fs.readdirSync(d); } catch { return []; } }
-
-// The model and effort the main conversation used for its latest request. Claude Code logs each
-// request as an "api-request" line; we read the tail of the file and take the last main-thread one.
-function mainSpec(sid) {
-  const file = path.join(projDir, sid + '.jsonl');
-  try {
-    const size = fs.statSync(file).size, len = Math.min(size, 4 * 1024 * 1024);
-    const fd = fs.openSync(file, 'r'); const buf = Buffer.alloc(len);
-    fs.readSync(fd, buf, 0, len, size - len); fs.closeSync(fd);
-    const lines = buf.toString('utf8').split('\n');
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const l = lines[i];
-      if (!l.startsWith('{"type":"api-request"') || !l.includes('"repl_main_thread"')) continue;
-      try { const o = JSON.parse(l); const p = o.params || o; return { model: o.model || p.model || '', effort: (l.match(/"effort":"(low|medium|high|xhigh|max)"/) || [])[1] || '' }; } catch {}
-    }
-    // Fallback: the model of the last assistant message (no effort recorded there)
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const m = lines[i].startsWith('{"type":"assistant"') && lines[i].match(/"model":"(claude-[^"]+)"/);
-      if (m) return { model: m[1], effort: '' };
-    }
-  } catch {}
-  return { model: '', effort: '' };
-}
-
-function sessionTitle(file) {
-  let title = '';
-  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-    if (line.startsWith('{"type":"ai-title"')) { try { title = JSON.parse(line).aiTitle || title; } catch {} }
-  }
-  return title;
-}
 
 function cleanUser(t) {
   t = t.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '');
@@ -249,41 +333,6 @@ function cleanUser(t) {
   }
   t = t.replace(/<pasted_content[^>]*>/g, '\n[pasted content]\n').replace(/<\/pasted_content>/g, '\n[end of pasted content]\n');
   return t.trim();
-}
-
-function parseSession(id) {
-  const file = path.join(projDir, id + '.jsonl');
-  if (!/^[0-9a-f-]{8,}$/i.test(id || '') || !fs.existsSync(file)) throw new Error('Session not found: ' + id);
-  const items = [];
-  let lastId = null;
-  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-    if (!line.includes('"type":"user"') && !line.includes('"type":"assistant"')) continue;
-    let o; try { o = JSON.parse(line); } catch { continue; }
-    if ((o.type !== 'user' && o.type !== 'assistant') || o.isSidechain || o.isMeta || o.isCompactSummary) continue;
-    const c = o.message?.content;
-    let text = '';
-    if (typeof c === 'string') text = c;
-    else if (Array.isArray(c)) {
-      text = c.filter((b) => b?.type === 'text').map((b) => b.text).join('\n');
-      if (o.type === 'user' && c.some((b) => b?.type === 'image')) text = (text + '\n[image]').trim();
-    }
-    const time = o.timestamp || '';
-    if (o.type === 'user') {
-      const t = cleanUser(text);
-      if (!t) continue;
-      items.push({ role: 'user', time, text: t });
-      lastId = null;
-    } else {
-      // One response is stored as several lines split around tool calls; merge lines with the same message.id
-      const t = text.trim();
-      if (!t) continue;
-      const mid = o.message?.id;
-      if (mid && mid === lastId && items.length) items[items.length - 1].text += '\n\n' + t;
-      else items.push({ role: 'assistant', time, text: t });
-      lastId = mid;
-    }
-  }
-  return items.map((it, i) => ({ i, ...it }));
 }
 
 // The question/answer pair around the picked message
