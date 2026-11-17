@@ -518,16 +518,18 @@ function listModels() {
 // images: [{ media_type, data(base64) }] are sent with the prompt as one stream-json user message.
 // signal: an AbortSignal that stops the run (the client went away). Every run is also capped at 20 minutes.
 const RUN_LIMIT_MS = 20 * 60 * 1000;
-function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = false, model = '', effort = '', images = [], signal }, onEvent = () => {}) {
+// oneShot: a standalone run (no resume, no context file, nothing saved), used for notes and summaries.
+function runClaude({ prompt, resumeId, ctx, name, readTools = false, fork = false, oneShot = false, model = '', effort = '', images = [], signal }, onEvent = () => {}) {
   return new Promise((resolve) => {
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
       '--tools', readTools ? READ_TOOLS : '', '--strict-mcp-config'];
     if (model && model !== 'default' && validModel(model)) args.push('--model', model);
     if (effort && validEffort(effort)) args.push('--effort', effort);
     if (images.length) args.push('--input-format', 'stream-json');
-    if (resumeId) args.push('--resume', resumeId);
+    if (oneShot) args.push('--no-session-persistence');
+    else if (resumeId) args.push('--resume', resumeId);
     else args.push('--append-system-prompt-file', ctx, '-n', name);
-    if (fork) args.push('--fork-session', '--no-session-persistence');
+    if (fork && resumeId) args.push('--fork-session', '--no-session-persistence');
     active++;
     const p = spawnClaude(args, { cwd: CWD, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     let stopped = '';
@@ -598,15 +600,44 @@ function notesDir() {
   return path.join(fs.existsSync(docs) ? docs : HOME, 'Tangent Notes');
 }
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-const notePrompt = (sessionTitle) => [
-  'Write a standalone study note in Markdown about what the user learned in this side discussion,',
-  'so they can keep it in their personal notes and understand it months later without this conversation.',
+// What was said in a branch, as plain text. Notes and summaries are written from this alone, so they are
+// about the branch itself and not about the main conversation the branch started from.
+function branchTranscript(b) {
+  const L = [];
+  const start = (b.selection || b.anchorPreview || '').trim();
+  if (start) L.push('<starting_point>', 'The side discussion started from this part of a larger conversation (background only):', start.slice(0, 1500), '</starting_point>', '');
+  L.push('<side_discussion>');
+  for (const m of b.messages) {
+    if (m.role === 'error') continue;
+    const imgs = m.images?.length ? ` [${m.images.length} image${m.images.length > 1 ? 's' : ''} attached]` : '';
+    L.push(`${m.role === 'user' ? 'USER' : 'ASSISTANT'}:${imgs}`, m.text || '', '');
+  }
+  L.push('</side_discussion>');
+  return L.join('\n').slice(-150000);
+}
+// The language the user wrote the branch in, decided from the script rather than left to the model
+// (the instructions are in English, which otherwise pulls the note into English)
+function branchLanguage(b) {
+  const text = b.messages.filter((m) => m.role === 'user').map((m) => m.text || '').join(' ');
+  if (/[\uAC00-\uD7A3]/.test(text)) return 'Korean';
+  if (/[\u3040-\u30FF]/.test(text)) return 'Japanese';
+  if (/[\u4E00-\u9FFF]/.test(text)) return 'Chinese';
+  return '';
+}
+const langRule = (lang) => (lang
+  ? `- Write everything (title, body, section headings) in ${lang}, the language the user wrote in. Keep code and technical terms as they are.`
+  : '- Write everything in the language the user wrote in.');
+const notePrompt = (sessionTitle, lang) => [
+  'Write a standalone study note in Markdown about what the user asked and learned in the side discussion below.',
+  'The subject of the note is the <side_discussion>: the questions the user asked there and the answers they got.',
+  'The <starting_point> is only background; do not make it the topic of the note.',
+  'The note is for the user\'s personal notes, so they can understand it months later without any conversation.',
   'Rules:',
-  "- Write in the language the user used in this discussion.",
+  langRule(lang),
   `- Start with YAML front matter: title, date (${today()}), tags (3-6 short lowercase keywords), source: "Tangent"${sessionTitle ? `, context: "${String(sessionTitle).replace(/"/g, "'")}"` : ''}.`,
   '- Then "# <title>", a short summary paragraph, and "##" sections for: key points (bullets), an example (code or a concrete case, if it helps),',
   '  pitfalls (only if there are real ones) and related terms worth looking up next.',
-  '- Write the section headings in the same language as the note (for a Korean note: 핵심 정리, 예시, 주의할 점, 관련 개념).',
+  '- Section headings follow the note language (for a Korean note: 핵심 정리, 예시, 주의할 점, 관련 개념).',
   '- Explain things directly. Never write "as discussed above" or refer to "this conversation".',
   '- Keep it concise, about 150-400 words. Output only the Markdown, no preamble.',
 ].join('\n');
@@ -624,9 +655,11 @@ function saveNote(content) {
   return file;
 }
 
-const SUMMARY_PROMPT = [
-  'Summarize this side discussion so the user can paste it back into their main Claude Code conversation.',
-  'Output only the note, written in the language the user used in this discussion.',
+const summaryPrompt = (lang) => [
+  'Summarize the <side_discussion> below so the user can paste it back into their main Claude Code conversation.',
+  'Summarize what was asked and concluded in the side discussion; the <starting_point> is only background.',
+  'Output only the note.',
+  langRule(lang),
   'First line: "Side note (Tangent): <short topic>". Then 2-6 short bullet points with the conclusions, decisions and open questions.',
   'No preamble, no closing remarks.',
 ].join('\n');
@@ -771,7 +804,7 @@ function serve() {
           const send_ = (o) => res.write(JSON.stringify(o) + '\n');
           const title = sessionTitle(path.join(projDir, sid + '.jsonl'));
           const ac = new AbortController(); res.on('close', () => { if (!res.writableEnded) ac.abort(); });
-          const r = await runClaude({ prompt: notePrompt(title), resumeId: b.sessionId, fork: true, model, effort, signal: ac.signal }, (o) => { if (o.type === 'delta') send_(o); });
+          const r = await runClaude({ prompt: notePrompt(title, branchLanguage(b)) + '\n\n' + branchTranscript(b), oneShot: true, model, effort, signal: ac.signal }, (o) => { if (o.type === 'delta') send_(o); });
           send_(r.error ? { type: 'error', error: r.error } : { type: 'done', note: r.text, dir: notesDir() });
           return res.end();
         }
@@ -794,7 +827,7 @@ function serve() {
           res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' });
           const send_ = (o) => res.write(JSON.stringify(o) + '\n');
           const ac = new AbortController(); res.on('close', () => { if (!res.writableEnded) ac.abort(); });
-          const r = await runClaude({ prompt: SUMMARY_PROMPT, resumeId: b.sessionId, fork: true, model: 'haiku', signal: ac.signal }, (o) => { if (o.type === 'delta') send_(o); });
+          const r = await runClaude({ prompt: summaryPrompt(branchLanguage(b)) + '\n\n' + branchTranscript(b), oneShot: true, model: 'haiku', signal: ac.signal }, (o) => { if (o.type === 'delta') send_(o); });
           send_(r.error ? { type: 'error', error: r.error } : { type: 'done', summary: r.text });
           return res.end();
         }
