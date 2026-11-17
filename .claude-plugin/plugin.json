@@ -1,0 +1,10 @@
+{
+  "name": "tangent",
+  "version": "0.1.0",
+  "description": "Branch side-chats off any sentence of your Claude Code session, in a local browser view.",
+  "author": { "name": "closeup1202" },
+  "homepage": "https://github.com/closeup1202/tangent",
+  "repository": "https://github.com/closeup1202/tangent",
+  "license": "MIT",
+  "keywords": ["branch", "side-chat", "tangent", "conversation", "browser"]
+}

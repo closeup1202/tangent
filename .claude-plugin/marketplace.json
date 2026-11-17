@@ -1,0 +1,11 @@
+{
+  "name": "tangent",
+  "owner": { "name": "closeup1202" },
+  "plugins": [
+    {
+      "name": "tangent",
+      "source": "./",
+      "description": "Branch side-chats off any sentence of your Claude Code session, in a local browser view."
+    }
+  ]
+}

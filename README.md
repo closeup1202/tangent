@@ -42,6 +42,20 @@ Tangent opens your current session in the browser. Highlight any sentence, click
 
 ## Install
 
+### As a Claude Code plugin (recommended)
+
+At the Claude Code prompt:
+
+```
+/plugin install tangent --marketplace closeup1202/tangent
+```
+
+Answer `y` to add the marketplace, then pick a scope (user scope makes `/tg` available in every project). From a shell, the same is `claude plugin install tangent --marketplace closeup1202/tangent`.
+
+The command is `/tg`. If another plugin or command already uses that name, it is `/tangent:tg`.
+
+### Manually
+
 ```bash
 git clone https://github.com/closeup1202/tangent.git
 cd tangent
@@ -71,7 +85,8 @@ Your conversation opens in the browser. Highlight text, click **Branch**, and as
 |---|---|
 | `server.mjs` | Local server. Reads the session log and runs branch chats through `claude -p`. No dependencies. |
 | `page.html` | The UI. Includes a small built-in Markdown renderer; no CDN. |
-| `install.mjs` | Installs and uninstalls the slash command. |
+| `install.mjs` | Manual install and uninstall of the slash command. |
+| `commands/tg.md`, `.claude-plugin/` | Plugin packaging: the `/tg` command, manifest and marketplace file. |
 
 - **Your session is read-only.** Tangent reads `~/.claude/projects/<project>/<session>.jsonl` and never writes to it.
 - **Branches are ordinary Claude Code sessions.** They run with `claude -p --tools "" --strict-mcp-config` (or `--tools Read,Grep,Glob` when **Read files** is on). The first message gets the picked context through `--append-system-prompt-file`, and follow-ups use `--resume`. Branches count toward your normal Claude usage.
@@ -90,6 +105,10 @@ Your conversation opens in the browser. Highlight text, click **Branch**, and as
 - **If `claude` was installed through npm on Windows** (`claude.cmd`), it runs through the shell. Set `TANGENT_CLAUDE_BIN` if your binary is somewhere unusual.
 
 ## Uninstall
+
+Plugin: `/plugin uninstall tangent` (or `claude plugin uninstall tangent`).
+
+Manual install:
 
 ```bash
 node install.mjs --uninstall          # remove the command and launcher, keep branch data

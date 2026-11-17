@@ -26,6 +26,20 @@ Claude Code 대화는 한 줄로만 이어집니다. 중간에 "이 부분은 �
 
 ## 설치
 
+### Claude Code 플러그인으로 (추천)
+
+Claude Code 입력창에서 다음을 실행합니다.
+
+```
+/plugin install tangent --marketplace closeup1202/tangent
+```
+
+마켓플레이스를 추가할지 물으면 `y`를 누르고, 설치 범위를 고릅니다. user 범위를 고르면 모든 프로젝트에서 `/tg`를 쓸 수 있습니다. 셸에서는 `claude plugin install tangent --marketplace closeup1202/tangent`로 같은 설치를 할 수 있습니다.
+
+명령은 `/tg`입니다. 같은 이름의 명령이 이미 있으면 `/tangent:tg`가 됩니다.
+
+### 직접 설치
+
 ```bash
 git clone https://github.com/closeup1202/tangent.git
 cd tangent
@@ -57,7 +71,8 @@ Claude Code 대화창에서 다음을 입력합니다.
 |---|---|
 | `server.mjs` | 로컬 서버. 세션 기록을 읽고, `claude -p`로 가지 대화를 실행합니다. 외부 패키지를 쓰지 않습니다. |
 | `page.html` | 브라우저 화면(마크다운 렌더러 포함, 외부 CDN 없음) |
-| `install.mjs` | `/tg` 명령 설치·제거 |
+| `install.mjs` | 직접 설치할 때 `/tg` 명령 설치·제거 |
+| `commands/tg.md`, `.claude-plugin/` | 플러그인 포장: `/tg` 명령, 매니페스트, 마켓플레이스 파일 |
 
 - **원래 대화:** `~/.claude/projects/<작업 폴더>/<세션>.jsonl`을 읽기만 하고 고치지 않습니다.
 - **가지 대화:** `claude -p --tools "" --strict-mcp-config`로 실행합니다(**파일 읽기**를 켜면 `--tools Read,Grep,Glob`). 첫 질문에는 `--append-system-prompt-file`로 맥락을 넣고, 이어지는 질문은 `--resume`으로 보냅니다. 가지 대화도 Claude Code 세션으로 저장되므로 구독 사용량을 씁니다.
@@ -76,6 +91,10 @@ Claude Code 대화창에서 다음을 입력합니다.
 - Windows에서 `claude`가 npm으로 설치돼 있으면(`claude.cmd`) 셸을 거쳐 실행합니다. 경로가 특이하면 환경변수 `TANGENT_CLAUDE_BIN`에 실행 파일 경로를 지정하세요.
 
 ## 제거
+
+플러그인으로 설치했다면 `/plugin uninstall tangent`(또는 `claude plugin uninstall tangent`)를 실행합니다.
+
+직접 설치했다면 다음을 실행합니다.
 
 ```bash
 node install.mjs --uninstall          # /tg 명령과 진입점 제거 (가지 기록은 남김)

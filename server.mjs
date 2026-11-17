@@ -415,7 +415,7 @@ function serve() {
   server.on('error', (e) => { fs.writeFileSync(statusFile, JSON.stringify({ error: String(e.message || e) })); process.exit(1); });
   server.listen(0, '127.0.0.1', () => {
     port = server.address().port;
-    if (!argv.includes('--no-open')) openUrl(`http://127.0.0.1:${port}/?t=${TOKEN}`);
+    if (!argv.includes('--no-open') && !process.env.TANGENT_NO_OPEN) openUrl(`http://127.0.0.1:${port}/?t=${TOKEN}`);
     fs.writeFileSync(statusFile, JSON.stringify({ url: `http://127.0.0.1:${port}/`, port }));
   });
   setInterval(() => { if (active === 0 && Date.now() - lastSeen > IDLE_MS) process.exit(0); }, 30000);
