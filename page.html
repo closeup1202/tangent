@@ -50,6 +50,9 @@ header {
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; letter-spacing: -.01em; white-space: nowrap; }
 .brand svg { width: 26px; height: 26px; }
 .brand small { color: var(--muted); font-weight: 400; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); flex: none; animation: live 2.4s ease-in-out infinite; }
+.live-dot.off { background: var(--faint); animation: none; }
+@keyframes live { 50% { opacity: .35; } }
 .session-title { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .hgroup { display: flex; gap: 8px; align-items: center; }
 select, .search {
@@ -178,6 +181,28 @@ textarea { flex: 1; border: 0; outline: none; resize: none; background: transpar
 .link-btn:hover { color: var(--accent-strong); background: var(--sunken); }
 .link-btn svg { width: 14px; height: 14px; }
 
+.toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); white-space: nowrap; user-select: none; }
+.toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle .sw { width: 26px; height: 15px; border-radius: 999px; background: var(--line); position: relative; transition: background .15s; flex: none; }
+.toggle .sw::after { content: ""; position: absolute; left: 2px; top: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s; }
+.toggle input:checked + .sw { background: var(--twig); }
+.toggle input:checked + .sw::after { transform: translateX(11px); }
+.toggle input:checked ~ span:last-child { color: var(--twig); font-weight: 600; }
+.toggle input:focus-visible + .sw { box-shadow: 0 0 0 3px var(--accent-soft); }
+.composer .keys { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 8px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; font: 11.5px/1.4 "SF Mono", Menlo, Consolas, monospace; color: var(--twig); background: var(--sunken); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip b { font-family: -apple-system, "Segoe UI", sans-serif; font-weight: 600; }
+.modal-bg { position: fixed; inset: 0; background: rgba(20,20,19,.38); display: grid; place-items: center; z-index: 40; padding: 16px; }
+.modal { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); width: min(620px, 100%); padding: 16px 18px; display: grid; gap: 12px; }
+.modal h3 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.modal h3 svg { width: 20px; height: 20px; }
+.modal p { margin: 0; font-size: 12.5px; color: var(--muted); }
+.modal textarea { width: 100%; min-height: 200px; max-height: 50vh; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); padding: 10px 12px; font: 13.5px/1.6 inherit; resize: vertical; }
+.modal .row-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.btn { height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { background: var(--accent-strong); }
 .blist { list-style: none; margin: 0; padding: 0; }
 .blist li { position: relative; padding: 10px 12px 10px 34px; border-radius: 10px; cursor: pointer; margin-bottom: 4px; }
 .blist li:hover { background: var(--sunken); }
@@ -211,6 +236,7 @@ textarea { flex: 1; border: 0; outline: none; resize: none; background: transpar
       <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 28 C10 18 14 12 24 6" stroke="var(--twig)" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M15 14 C12 10 13 7 16 5 C18 9 18 12 15 14Z" fill="var(--leaf)"/><path d="M19 11 C23 10 26 12 27 15 C23 16 20 14 19 11Z" fill="var(--leaf)" opacity=".7"/></svg>
       Tangent
     </div>
+    <span class="live-dot" id="liveDot" data-i18n-title="liveTitle"></span>
     <div class="session-title" id="sessionTitle"></div>
     <div class="hgroup">
       <input class="search" id="search" data-i18n-placeholder="search" autocomplete="off">
@@ -231,7 +257,8 @@ textarea { flex: 1; border: 0; outline: none; resize: none; background: transpar
           <button class="send" id="send" data-i18n-title="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
         <div class="tools">
-          <span data-i18n="keysHint" data-i18n-title="noToolsHint"></span><span class="sp"></span>
+          <label class="toggle" data-i18n-title="readFilesTitle"><input type="checkbox" id="readTools"><span class="sw"></span><span data-i18n="readFiles"></span></label>
+          <span class="keys" data-i18n="keysHint"></span><span class="sp"></span>
           <button class="link-btn" id="toTerminal" data-i18n-title="toTerminalTitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 17l6-5-6-5M12 19h8"/></svg><span data-i18n="toTerminal"></span></button>
         </div>
       </div>
@@ -272,6 +299,12 @@ const I18N = {
     terminalOpened: 'Opened a terminal. The branch continues as a regular Claude session with tools.',
     terminalCopied: "Couldn't open a terminal. The command is on your clipboard — paste it into a terminal.",
     terminalPrompt: 'Run this in a terminal', reloaded: 'Conversation reloaded.', loadFailed: 'Failed to load: ',
+    liveTitle: 'Live: new messages in the main session appear automatically',
+    readFiles: 'Read files', readFilesTitle: 'Let Claude read project files (Read, Grep, Glob). It still cannot edit files or run commands.',
+    summary: 'Bring back', summaryTitle: 'Summarize this branch so you can paste it into the main session',
+    summarizing: 'Summarizing this branch…', summaryFailed: 'Could not summarize: ',
+    summaryHeading: 'Bring this branch back', summaryHint: 'Edit if you like, copy it, then paste it into your main Claude Code session.',
+    copy: 'Copy', copied: 'Copied. Paste it into your main session.',
   },
   ko: {
     search: '대화 검색', session: '세션', reload: '대화 다시 읽기', theme: '테마', language: '언어',
@@ -289,6 +322,12 @@ const I18N = {
     terminalOpened: '터미널 창을 열었습니다. 도구를 쓸 수 있는 Claude 로 이어집니다.',
     terminalCopied: '터미널을 열지 못했습니다. 명령을 복사했으니 터미널에 붙여 넣으세요.',
     terminalPrompt: '터미널에서 실행하세요', reloaded: '대화를 다시 읽었습니다.', loadFailed: '불러오지 못했습니다: ',
+    liveTitle: '실시간: 원래 대화에 새 메시지가 생기면 자동으로 붙습니다',
+    readFiles: '파일 읽기', readFilesTitle: 'Claude 가 프로젝트 파일을 읽을 수 있게 합니다 (Read, Grep, Glob). 수정·명령 실행은 여전히 못 합니다.',
+    summary: '본 대화로', summaryTitle: '이 가지를 요약해서 본 대화에 붙여 넣을 수 있게 합니다',
+    summarizing: '가지를 요약하는 중…', summaryFailed: '요약하지 못했습니다: ',
+    summaryHeading: '가지 내용을 본 대화로 가져가기', summaryHint: '필요하면 고친 뒤 복사해서, 원래 Claude Code 대화에 붙여 넣으세요.',
+    copy: '복사', copied: '복사했습니다. 원래 대화에 붙여 넣으세요.',
   },
 };
 let LANG = (() => { try { const l = localStorage.getItem('tangent-lang'); if (l && I18N[l]) return l; } catch {} return /^ko\b/i.test(navigator.language || '') ? 'ko' : 'en'; })();
@@ -393,30 +432,76 @@ function twigSvg(branches, openId) {
 function fmtTime(t) { if (!t) return ''; const d = new Date(t); return isNaN(d) ? '' : d.toLocaleString(LOCALE(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 function branchesOf(i) { return state.branches.filter((b) => b.anchor === i); }
 
+function rowHtml(it, q) {
+  const bs = branchesOf(it.i);
+  const hide = q && !it.text.toLowerCase().includes(q) ? ' hidden' : '';
+  const who = it.role === 'user' ? '<b>' + t('you') + '</b>' : SPARK + '<b>Claude</b>';
+  return `<div class="row${bs.length ? ' has-branch' : ''}${hide}" data-i="${it.i}">
+    <div class="msg ${it.role}" data-i="${it.i}">
+      <div class="who">${who}<span>${fmtTime(it.time)}</span></div>
+      <div class="bodywrap"><div class="body md">${md(it.text)}</div></div>
+      <button class="act" data-act="${it.i}" title="${t('branchMsgTitle')}">${SMALL_TWIG.replace('viewBox="0 0 22 30"', 'viewBox="0 0 22 30" width="13" height="13"')}${t('branchMsg')}</button>
+    </div>
+    <div class="gutter"><span class="node"></span>${bs.length ? twigSvg(bs, state.open) : ''}</div>
+  </div>`;
+}
+
 function renderThread(keepScroll) {
   const wrap = $('#threadWrap'), prev = wrap.scrollTop;
   const q = $('#search').value.trim().toLowerCase();
-  const html = state.items.map((it) => {
-    const bs = branchesOf(it.i);
-    const hide = q && !it.text.toLowerCase().includes(q) ? ' hidden' : '';
-    const who = it.role === 'user' ? '<b>' + t('you') + '</b>' : SPARK + '<b>Claude</b>';
-    return `<div class="row${bs.length ? ' has-branch' : ''}${hide}" data-i="${it.i}">
-      <div class="msg ${it.role}" data-i="${it.i}">
-        <div class="who">${who}<span>${fmtTime(it.time)}</span></div>
-        <div class="bodywrap"><div class="body md">${md(it.text)}</div></div>
-        <button class="act" data-act="${it.i}" title="${t('branchMsgTitle')}">${SMALL_TWIG.replace('viewBox="0 0 22 30"', 'viewBox="0 0 22 30" width="13" height="13"')}${t('branchMsg')}</button>
-      </div>
-      <div class="gutter"><span class="node"></span>${bs.length ? twigSvg(bs, state.open) : ''}</div>
-    </div>`;
-  }).join('');
+  const html = state.items.map((it) => rowHtml(it, q)).join('');
   $('#thread').innerHTML = html || '<div class="empty">' + t('noMessages') + '</div>';
   markSelections();
   if (keepScroll) wrap.scrollTop = prev;
 }
 
-function markSelections() {
+/* ---------- live refresh: poll the session file, re-render only what changed ---------- */
+const live = { mtime: 0, size: 0, busy: false };
+function selectionRow() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !sel.toString().trim()) return -1;
+  const n = sel.getRangeAt(0).startContainer;
+  const row = (n.nodeType === 1 ? n : n.parentElement).closest('.row');
+  return row ? Number(row.dataset.i) : -1;
+}
+function applyThread(items) {
+  const old = state.items;
+  let k = 0;
+  while (k < old.length && k < items.length && old[k].role === items[k].role && old[k].text === items[k].text) k++;
+  if (k === old.length && k === items.length) return true;
+  const sr = selectionRow();
+  if (sr >= k) return false; // the user is selecting text in a row that would change; try again later
+  const wrap = $('#threadWrap');
+  const nearBottom = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 160;
+  state.items = items;
+  const thread = $('#thread');
+  if (!old.length) thread.innerHTML = '';
+  thread.querySelectorAll('.row').forEach((r) => { if (Number(r.dataset.i) >= k) r.remove(); });
+  const q = $('#search').value.trim().toLowerCase();
+  thread.insertAdjacentHTML('beforeend', items.slice(k).map((it) => rowHtml(it, q)).join(''));
+  markSelections(k);
+  if (nearBottom) { wrap.style.scrollBehavior = 'auto'; wrap.scrollTop = wrap.scrollHeight; wrap.style.scrollBehavior = ''; }
+  return true;
+}
+async function pollLive() {
+  if (live.busy || document.hidden || !state.session) return;
+  live.busy = true;
+  try {
+    const s = await (await api('/api/stat?session=' + encodeURIComponent(state.session))).json();
+    if (s.mtime !== live.mtime || s.size !== live.size) {
+      const data = await (await api('/api/thread?session=' + encodeURIComponent(state.session))).json();
+      if (applyThread(data.items)) { live.mtime = s.mtime; live.size = s.size; $('#sessionTitle').textContent = data.title || ''; }
+    }
+    $('#liveDot').classList.remove('off');
+  } catch { $('#liveDot').classList.add('off'); }
+  finally { live.busy = false; }
+}
+setInterval(pollLive, 2500);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pollLive(); });
+
+function markSelections(fromIndex = 0) {
   for (const b of state.branches) {
-    if (!b.selection) continue;
+    if (!b.selection || b.anchor < fromIndex) continue;
     const body = document.querySelector(`.msg[data-i="${b.anchor}"] .body`);
     if (!body) continue;
     const needle = b.selection.split('\n').map((s) => s.trim()).find((s) => s.length > 0);
@@ -446,7 +531,9 @@ async function loadSessions() {
 
 async function loadThread(scrollBottom) {
   if (!state.session) { $('#thread').innerHTML = '<div class="empty">' + t('noSessions') + '</div>'; return; }
+  const st = await api('/api/stat?session=' + encodeURIComponent(state.session)).then((r) => r.json()).catch(() => ({}));
   const data = await (await api('/api/thread?session=' + encodeURIComponent(state.session))).json();
+  live.mtime = st.mtime; live.size = st.size;
   state.items = data.items; state.branches = data.branches;
   $('#sessionTitle').textContent = data.title || '';
   renderThread(!scrollBottom);
@@ -480,20 +567,31 @@ function renderPanel() {
   }
   panel.classList.remove('closed');
   const title = b.messages.length ? (b.messages[0].text.split('\n')[0]) : t('newBranch');
-  head.innerHTML = `<button class="icon-btn" id="backList" title="${t('back')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${TWIG_ICO}<span>${esc(title)}</span></h2>${b.id && !state.draft ? '<button class="icon-btn" id="delBranch" title="' + t('deleteBranch') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button>' : ''}`;
+  head.innerHTML = `<button class="icon-btn" id="backList" title="${t('back')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${TWIG_ICO}<span>${esc(title)}</span></h2>${b.sessionId && !state.draft ? '<button class="icon-btn" id="summaryBtn" title="' + t('summaryTitle') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6v3H9z"/><path d="M8 5H6v15h12V5h-2"/><path d="M9 12h6M9 16h4"/></svg><span style="font-size:12px">' + t('summary') + '</span></button>' : ''}${b.id && !state.draft ? '<button class="icon-btn" id="delBranch" title="' + t('deleteBranch') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button>' : ''}`;
   let html = anchorQuote(b);
   for (const m of b.messages) {
     if (m.role === 'user') html += `<div class="bmsg user"><div class="b">${esc(m.text)}</div></div>`;
     else if (m.role === 'error') html += `<div class="bmsg error"><div class="b">${esc(m.text)}</div></div>`;
-    else html += `<div class="bmsg assistant"><div class="b md">${md(m.text)}</div></div>`;
+    else html += `<div class="bmsg assistant">${chipsHtml(m.tools)}<div class="b md">${md(m.text)}</div></div>`;
   }
-  if (b._streaming !== undefined) html += `<div class="bmsg assistant"><div class="b md" id="streamBox">${b._streaming ? md(b._streaming) + '<span class="cursor"></span>' : '<span class="thinking"><i></i><i></i><i></i></span>'}</div></div>`;
+  if (b._streaming !== undefined) html += `<div class="bmsg assistant" id="streamMsg">${streamInner(b)}</div>`;
   body.innerHTML = html;
   body.scrollTop = body.scrollHeight;
   comp.classList.remove('hidden');
+  $('#readTools').checked = b.readTools ?? readToolsDefault();
   $('#toTerminal').style.display = b.sessionId ? '' : 'none';
   $('#send').disabled = state.busy.has(b.id || 'draft');
 }
+
+function chipsHtml(tools) {
+  if (!tools || !tools.length) return '';
+  return '<div class="chips">' + tools.map((x) => `<span class="chip" title="${esc(x.name + ' ' + (x.detail || ''))}"><b>${esc(x.name)}</b>${esc(x.detail || '')}</span>`).join('') + '</div>';
+}
+function streamInner(b) {
+  const body = b._streaming ? md(b._streaming) + '<span class="cursor"></span>' : '<span class="thinking"><i></i><i></i><i></i></span>';
+  return chipsHtml(b._tools) + `<div class="b md">${body}</div>`;
+}
+function readToolsDefault() { try { return localStorage.getItem('tangent-readtools') === '1'; } catch { return false; } }
 
 function openBranch(id) {
   state.draft = null; state.open = id;
@@ -530,14 +628,16 @@ async function sendQuestion() {
   if (state.busy.has(key)) return;
   state.busy.add(key);
   input.value = ''; autosize();
+  const readTools = $('#readTools').checked;
+  b.readTools = readTools;
   b.messages.push({ role: 'user', text: question });
-  b._streaming = '';
+  b._streaming = ''; b._tools = [];
   renderPanel();
 
   const url = draft ? '/api/branch' : `/api/branch/${b.id}/ask`;
-  const payload = draft ? { session: state.session, anchor: b.anchor, selection: b.selection, question } : { session: state.session, question };
+  const payload = draft ? { session: state.session, anchor: b.anchor, selection: b.selection, question, readTools } : { session: state.session, question, readTools };
   let current = b, raf = 0;
-  const paint = () => { raf = 0; const box = $('#streamBox'); if (box && (state.open === current.id || state.draft === current)) { box.innerHTML = md(current._streaming) + '<span class="cursor"></span>'; const pb = $('#panelBody'); pb.scrollTop = pb.scrollHeight; } };
+  const paint = () => { raf = 0; const box = $('#streamMsg'); if (box && (state.open === current.id || state.draft === current)) { box.innerHTML = streamInner(current); const pb = $('#panelBody'); pb.scrollTop = pb.scrollHeight; } };
   try {
     const r = await api(url, { method: 'POST', body: JSON.stringify(payload) });
     const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
@@ -551,12 +651,15 @@ async function sendQuestion() {
         if (!line) continue;
         const ev = JSON.parse(line);
         if (ev.type === 'branch') {
-          const nb = { ...ev.branch, _streaming: '' };
+          const nb = { ...ev.branch, _streaming: '', _tools: [] };
           if (draft) { state.draft = null; state.open = nb.id; state.branches.push(nb); state.busy.delete('draft'); state.busy.add(nb.id); }
           else Object.assign(current, { sessionId: ev.branch.sessionId });
           if (draft) { current = nb; renderThread(true); renderPanel(); }
         } else if (ev.type === 'delta') {
           current._streaming += ev.text;
+          if (!raf) raf = requestAnimationFrame(paint);
+        } else if (ev.type === 'tool') {
+          (current._tools ||= []).push({ name: ev.name, detail: ev.detail });
           if (!raf) raf = requestAnimationFrame(paint);
         } else if (ev.type === 'done' || ev.type === 'error') {
           const idx = state.branches.findIndex((x) => x.id === ev.branch.id);
@@ -569,7 +672,7 @@ async function sendQuestion() {
     if (current) { delete current._streaming; current.messages.push({ role: 'error', text: String(e.message || e) }); }
   } finally {
     state.busy.delete(key); if (current && current.id) state.busy.delete(current.id);
-    if (current) delete current._streaming;
+    if (current) { delete current._streaming; delete current._tools; }
     renderThread(true); renderPanel();
   }
 }
@@ -621,6 +724,18 @@ document.addEventListener('click', async (e) => {
     state.branches = state.branches.filter((x) => x.id !== b.id); state.open = null;
     renderThread(true); renderPanel(); return;
   }
+  if (t.closest('#summaryBtn')) {
+    const b = state.branches.find((x) => x.id === state.open);
+    if (!b) return;
+    const btn = t.closest('#summaryBtn'); btn.disabled = true;
+    toast(t('summarizing'));
+    try {
+      const r = await (await api(`/api/branch/${b.id}/summary`, { method: 'POST', body: JSON.stringify({ session: state.session }) })).json();
+      showSummary(r.summary);
+    } catch (err) { toast(t('summaryFailed') + String(err.message || err).slice(0, 120)); }
+    finally { btn.disabled = false; }
+    return;
+  }
   if (t.closest('#toTerminal')) {
     const b = state.branches.find((x) => x.id === state.open);
     if (!b) return;
@@ -658,6 +773,32 @@ $('#theme').addEventListener('click', () => {
 try { const th = localStorage.getItem('tangent-theme'); if (th) document.documentElement.dataset.theme = th; } catch {}
 let toastT = 0;
 function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2600); }
+
+$('#readTools').addEventListener('change', (e) => {
+  try { localStorage.setItem('tangent-readtools', e.target.checked ? '1' : '0'); } catch {}
+  const b = state.draft || state.branches.find((x) => x.id === state.open);
+  if (b) b.readTools = e.target.checked;
+});
+
+/* ---------- "Bring back" summary: review, edit, copy, paste into the main session ---------- */
+function showSummary(text) {
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h3>${TWIG_ICO}${esc(t('summaryHeading'))}</h3><p>${esc(t('summaryHint'))}</p><textarea></textarea><div class="row-btns"><button class="btn" data-x>${esc(t('close'))}</button><button class="btn primary" data-copy>${esc(t('copy'))}</button></div></div>`;
+  const ta = bg.querySelector('textarea'); ta.value = text;
+  const close = () => { bg.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  bg.addEventListener('click', async (e) => {
+    if (e.target === bg || e.target.closest('[data-x]')) return close();
+    if (e.target.closest('[data-copy]')) {
+      try { await navigator.clipboard.writeText(ta.value); } catch { ta.select(); document.execCommand('copy'); }
+      toast(t('copied')); close();
+    }
+  });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(bg);
+  ta.focus();
+}
 
 $('#lang').addEventListener('click', () => {
   LANG = LANG === 'ko' ? 'en' : 'ko';

@@ -17,7 +17,10 @@ Tangent opens your current session in the browser. Highlight any sentence, click
 - **Focused context.** A branch sees only the selected text and the question/answer pair it came from, not your whole session.
 - **Streaming answers.** Follow-up questions in a branch remember the earlier ones.
 - **Branches are visible.** Branches grow as twigs off the conversation's trunk, and the sentences you branched from stay highlighted. Branches are saved, so they are still there next time.
-- **Continue in the terminal.** Branch chats run without tools. When you need file access or shell commands, one click reopens the same branch as a regular Claude Code session (`claude -r <branch>`).
+- **Read files (optional).** Flip the **Read files** switch and the branch can look at your project with `Read`, `Grep` and `Glob`, so it answers from the actual code. It still cannot edit anything or run commands, and files outside the project folder are refused. Each file it reads shows up as a chip above the answer.
+- **Bring it back.** When a branch reaches a conclusion, **Bring back** writes a short note (topic + bullet points) that you can edit, copy and paste into the main session. The summary runs on a throwaway copy, so the branch history stays clean.
+- **Live.** New messages in the main session appear automatically. No reload needed, and your scroll position and text selection are kept.
+- **Continue in the terminal.** When you need edits or shell commands, one click reopens the same branch as a regular Claude Code session (`claude -r <branch>`).
 - **Also included:** search, a session switcher, light and dark themes, and an English/Korean UI (follows your browser language).
 
 ## How it differs from built-in commands
@@ -28,7 +31,8 @@ Tangent opens your current session in the browser. Highlight any sentence, click
 | Answer is kept | – | ✓ | ✓ |
 | Context | whole session | whole session (copied) | selected part only |
 | Several side threads, visible at a glance | – | – | ✓ |
-| Tools | none | full | none (one click to a full terminal session) |
+| Tools | none | full | optional read-only (one click to a full terminal session) |
+| Bring the result back to the main thread | – | manual | ✓ (summary to paste) |
 
 ## Requirements
 
@@ -59,7 +63,7 @@ In any Claude Code session, type:
 /tg
 ```
 
-Your conversation opens in the browser. Highlight text, click **Branch**, and ask. If the main session has moved on, click **Reload** to see the new messages.
+Your conversation opens in the browser. Highlight text, click **Branch**, and ask. New messages in the main session show up automatically.
 
 ## How it works
 
@@ -70,14 +74,14 @@ Your conversation opens in the browser. Highlight text, click **Branch**, and as
 | `install.mjs` | Installs and uninstalls the slash command. |
 
 - **Your session is read-only.** Tangent reads `~/.claude/projects/<project>/<session>.jsonl` and never writes to it.
-- **Branches are ordinary Claude Code sessions.** They run with `claude -p --tools "" --strict-mcp-config`. The first message gets the picked context through `--append-system-prompt-file`, and follow-ups use `--resume`. Branches count toward your normal Claude usage.
+- **Branches are ordinary Claude Code sessions.** They run with `claude -p --tools "" --strict-mcp-config` (or `--tools Read,Grep,Glob` when **Read files** is on). The first message gets the picked context through `--append-system-prompt-file`, and follow-ups use `--resume`. Branches count toward your normal Claude usage.
 - **Branch data lives outside the repo,** in `~/.claude/tangent/data/`. It contains conversation text. Override the location with `TANGENT_DATA`.
 
 ## Security
 
 - The server listens only on `127.0.0.1`. It uses a random token per launch and checks the `Host` and `Origin` headers.
 - It shuts itself down after 10 minutes without requests.
-- Branch chats have no tools, because there is nowhere to show a permission prompt.
+- Branch chats can never edit files or run commands, because there is nowhere to show a permission prompt. With **Read files** on they get read-only tools; anything that would need a permission prompt (such as reading outside the project) is denied.
 
 ## Limitations
 
