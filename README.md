@@ -20,6 +20,11 @@ Tangent opens your current session in the browser. Highlight any sentence, click
 - **Read files (optional).** Flip the **Read files** switch and the branch can look at your project with `Read`, `Grep` and `Glob`, so it answers from the actual code. It still cannot edit anything or run commands, and files outside the project folder are refused. Each file it reads shows up as a chip above the answer.
 - **Bring it back.** When a branch reaches a conclusion, **Bring back** writes a short note (topic + bullet points) that you can edit, copy and paste into the main session. The summary runs on a throwaway copy, so the branch history stays clean.
 - **Live.** New messages in the main session appear automatically. No reload needed, and your scroll position and text selection are kept.
+- **Branches of branches.** Select text inside a branch to branch again. Branches form a tree in the list, and the text a nested branch grew from stays highlighted.
+- **Pick a model per branch.** Default, Haiku (fast and cheap for quick questions), Sonnet or Opus.
+- **Export.** Save any branch as a Markdown file.
+- **Search branches too.** The search box filters the main thread and lists the branches whose content matches.
+- **Keyboard.** `B` branches from the current selection, `/` focuses search, `Esc` goes back.
 - **Continue in the terminal.** When you need edits or shell commands, one click reopens the same branch as a regular Claude Code session (`claude -r <branch>`).
 - **Also included:** search, a session switcher, light and dark themes, and an English/Korean UI (follows your browser language).
 
@@ -31,6 +36,7 @@ Tangent opens your current session in the browser. Highlight any sentence, click
 | Answer is kept | – | ✓ | ✓ |
 | Context | whole session | whole session (copied) | selected part only |
 | Several side threads, visible at a glance | – | – | ✓ |
+| Branch again from inside a branch | – | – | ✓ |
 | Tools | none | full | optional read-only (one click to a full terminal session) |
 | Bring the result back to the main thread | – | manual | ✓ (summary to paste) |
 
