@@ -70,7 +70,7 @@ select:focus, .search:focus, textarea:focus { border-color: var(--accent); box-s
 .main { display: grid; grid-template-columns: minmax(0, 1fr) clamp(420px, 34vw, 680px); min-height: 0; overflow: hidden; }
 .thread-wrap { overflow-y: auto; overflow-x: hidden; min-height: 0; min-width: 0; scroll-behavior: smooth; }
 body { overflow: hidden; }
-/* 그리드 칸은 기본적으로 내용 폭만큼 늘어난다. 넓은 표·코드가 패널을 밀어내지 않게 막는다 */
+/* Grid items grow to their content width by default; keep wide tables/code from pushing the panel out */
 .panel, .panel > *, .row > *, .bmsg, .bmsg .b { min-width: 0; }
 .panel { overflow: hidden; }
 .thread { max-width: 860px; margin: 0 auto; padding: 28px 24px 120px; }
@@ -78,7 +78,7 @@ body { overflow: hidden; }
 /* ---------- messages + trunk ---------- */
 .row { display: grid; grid-template-columns: minmax(0, 1fr) 72px; position: relative; }
 .gutter { position: relative; }
-.gutter::before {               /* 줄기: 대화 전체를 따라 내려가는 얇은 갈색 선 */
+.gutter::before {               /* trunk: thin brown line running down the whole conversation */
   content: ""; position: absolute; left: 22px; top: 0; bottom: 0; width: 1.5px; background: var(--twig-soft);
 }
 .row:first-child .gutter::before { top: 22px; }
@@ -130,7 +130,7 @@ mark.twig-mark { background: var(--mark); color: inherit; border-bottom: 1.5px s
 .md hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
 .md a { color: var(--accent-strong); }
 
-/* ---------- floating "가지 치기" ---------- */
+/* ---------- floating "Branch" button ---------- */
 .float-branch {
   position: fixed; z-index: 20; display: none; align-items: center; gap: 6px;
   padding: 6px 12px 6px 9px; border: 0; border-radius: 999px; font-size: 13px; font-weight: 600;
@@ -209,14 +209,15 @@ textarea { flex: 1; border: 0; outline: none; resize: none; background: transpar
   <header>
     <div class="brand">
       <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 28 C10 18 14 12 24 6" stroke="var(--twig)" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M15 14 C12 10 13 7 16 5 C18 9 18 12 15 14Z" fill="var(--leaf)"/><path d="M19 11 C23 10 26 12 27 15 C23 16 20 14 19 11Z" fill="var(--leaf)" opacity=".7"/></svg>
-      Tangent <small>가지 질문</small>
+      Tangent
     </div>
     <div class="session-title" id="sessionTitle"></div>
     <div class="hgroup">
-      <input class="search" id="search" placeholder="대화 검색" autocomplete="off">
-      <select id="sessionSel" title="세션"></select>
-      <button class="icon-btn" id="reload" title="대화 다시 읽기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
-      <button class="icon-btn" id="theme" title="테마"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/></svg></button>
+      <input class="search" id="search" data-i18n-placeholder="search" autocomplete="off">
+      <select id="sessionSel" data-i18n-title="session"></select>
+      <button class="icon-btn" id="reload" data-i18n-title="reload"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+      <button class="icon-btn" id="lang" data-i18n-title="language" style="font-size:12px;font-weight:600;min-width:38px"></button>
+      <button class="icon-btn" id="theme" data-i18n-title="theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/></svg></button>
     </div>
   </header>
   <div class="main">
@@ -226,18 +227,18 @@ textarea { flex: 1; border: 0; outline: none; resize: none; background: transpar
       <div class="panel-body" id="panelBody"></div>
       <div class="composer hidden" id="composer">
         <div class="box">
-          <textarea id="input" rows="1" placeholder="이 부분에 대해 물어보세요"></textarea>
-          <button class="send" id="send" title="보내기 (Enter)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+          <textarea id="input" rows="1" data-i18n-placeholder="askPlaceholder"></textarea>
+          <button class="send" id="send" data-i18n-title="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
         <div class="tools">
-          <span title="이 창의 Claude 는 파일 읽기·명령 실행 없이 답합니다">Enter 보내기 · Shift+Enter 줄바꿈</span><span class="sp"></span>
-          <button class="link-btn" id="toTerminal" title="이 가지를 터미널 Claude 로 이어가기 (도구 사용 가능)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 17l6-5-6-5M12 19h8"/></svg>터미널에서 이어가기</button>
+          <span data-i18n="keysHint" data-i18n-title="noToolsHint"></span><span class="sp"></span>
+          <button class="link-btn" id="toTerminal" data-i18n-title="toTerminalTitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 17l6-5-6-5M12 19h8"/></svg><span data-i18n="toTerminal"></span></button>
         </div>
       </div>
     </aside>
   </div>
 </div>
-<button class="float-branch" id="floatBranch"><svg viewBox="0 0 24 24" fill="none"><path d="M5 21 C7 14 10 10 18 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11 11 C9 8 10 5 12 4 C14 7 13 10 11 11Z" fill="currentColor"/></svg>가지 치기</button>
+<button class="float-branch" id="floatBranch"><svg viewBox="0 0 24 24" fill="none"><path d="M5 21 C7 14 10 10 18 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11 11 C9 8 10 5 12 4 C14 7 13 10 11 11Z" fill="currentColor"/></svg><span data-i18n="branch"></span></button>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -253,10 +254,58 @@ async function api(path, opts = {}) {
 }
 setInterval(() => api('/api/ping', { method: 'POST' }).catch(() => {}), 60000);
 
-/* ---------- markdown (작은 자체 렌더러, 모든 입력은 먼저 이스케이프) ---------- */
+/* ---------- i18n (ko if the browser language is Korean, otherwise en; toggle in the header) ---------- */
+const I18N = {
+  en: {
+    search: 'Search conversation', session: 'Session', reload: 'Reload conversation', theme: 'Theme', language: 'Language',
+    askPlaceholder: 'Ask about this part', send: 'Send (Enter)', keysHint: 'Enter to send · Shift+Enter for newline',
+    noToolsHint: 'Claude answers here without tools (no file reads or commands)',
+    toTerminal: 'Continue in terminal', toTerminalTitle: 'Continue this branch as a regular Claude Code session (tools available)',
+    branch: 'Branch', branchMsg: 'Branch', branchMsgTitle: 'Branch from this whole message',
+    you: 'You', noMessages: 'No messages to show.', noSessions: 'No Claude Code sessions found for this folder.',
+    gotoSource: 'Jump to the original message', yourQuestion: 'your question', claudeAnswer: "Claude's answer",
+    excerpt: (src) => `Excerpt from ${src}`, whole: (src) => src.charAt(0).toUpperCase() + src.slice(1),
+    branches: 'Branches', close: 'Close', back: 'All branches', deleteBranch: 'Delete branch', newBranch: 'New branch',
+    emptyBranches: 'No branches yet.<br><b>Select some text</b> in the conversation,<br>or click <b>Branch</b> on a message.',
+    questions: (n) => `${n} question${n === 1 ? '' : 's'}`,
+    confirmDelete: 'Remove this branch from the list? (The Claude session itself is kept.)',
+    terminalOpened: 'Opened a terminal. The branch continues as a regular Claude session with tools.',
+    terminalCopied: "Couldn't open a terminal. The command is on your clipboard — paste it into a terminal.",
+    terminalPrompt: 'Run this in a terminal', reloaded: 'Conversation reloaded.', loadFailed: 'Failed to load: ',
+  },
+  ko: {
+    search: '대화 검색', session: '세션', reload: '대화 다시 읽기', theme: '테마', language: '언어',
+    askPlaceholder: '이 부분에 대해 물어보세요', send: '보내기 (Enter)', keysHint: 'Enter 보내기 · Shift+Enter 줄바꿈',
+    noToolsHint: '이 창의 Claude 는 파일 읽기·명령 실행 없이 답합니다',
+    toTerminal: '터미널에서 이어가기', toTerminalTitle: '이 가지를 터미널 Claude 로 이어가기 (도구 사용 가능)',
+    branch: '가지 치기', branchMsg: '가지', branchMsgTitle: '이 메시지 전체로 가지 치기',
+    you: '나', noMessages: '표시할 메시지가 없습니다.', noSessions: '이 폴더에는 Claude Code 세션 기록이 없습니다.',
+    gotoSource: '원래 위치로 이동', yourQuestion: '내 질문', claudeAnswer: 'Claude 답변',
+    excerpt: (src) => `${src}의 일부`, whole: (src) => src,
+    branches: '가지 목록', close: '닫기', back: '가지 목록', deleteBranch: '가지 삭제', newBranch: '새 가지',
+    emptyBranches: '아직 가지가 없습니다.<br>왼쪽 대화에서 <b>문장을 드래그</b>하거나<br>메시지의 <b>가지</b> 버튼을 누르세요.',
+    questions: (n) => `질문 ${n}개`,
+    confirmDelete: '이 가지를 목록에서 지울까요? (Claude 세션 기록 자체는 남습니다)',
+    terminalOpened: '터미널 창을 열었습니다. 도구를 쓸 수 있는 Claude 로 이어집니다.',
+    terminalCopied: '터미널을 열지 못했습니다. 명령을 복사했으니 터미널에 붙여 넣으세요.',
+    terminalPrompt: '터미널에서 실행하세요', reloaded: '대화를 다시 읽었습니다.', loadFailed: '불러오지 못했습니다: ',
+  },
+};
+let LANG = (() => { try { const l = localStorage.getItem('tangent-lang'); if (l && I18N[l]) return l; } catch {} return /^ko\b/i.test(navigator.language || '') ? 'ko' : 'en'; })();
+const t = (k, ...a) => { const v = I18N[LANG][k] ?? I18N.en[k] ?? k; return typeof v === 'function' ? v(...a) : v; };
+const LOCALE = () => (LANG === 'ko' ? 'ko-KR' : undefined);
+function applyI18n() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+  $('#lang').textContent = LANG === 'ko' ? '한' : 'EN';
+}
+
+/* ---------- markdown (tiny built-in renderer; all input is escaped first) ---------- */
 const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function inline(s) {
-  // 코드 조각을 먼저 빼 두고(굵게 안에 코드가 있어도 되게) 나머지를 변환한 뒤 되돌린다
+  // Pull code spans out first (so bold can contain code), convert the rest, then put them back
   const codes = [];
   let t = esc(s.replace(/`([^`\n]+)`/g, (_, c) => '\u0000' + (codes.push(c) - 1) + '\u0000'));
   t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
@@ -321,12 +370,15 @@ function md(src) {
   return out.join('');
 }
 
-/* ---------- 그림 조각 ---------- */
+// Strip markdown symbols for one-line previews
+const plain = (s) => s.replace(/[*_`#>|~]+/g, '').replace(/\s+/g, ' ').trim();
+
+/* ---------- drawings ---------- */
 const SPARK = '<svg class="spark" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.6 6.2L20 6l-4.2 5L22 12l-6.2 1.6L20 18l-5-4.2L12 22l-1.6-6.2L4 18l4.2-5L2 12l6.2-1.6L4 6l5 4.2z"/></svg>';
 const TWIG_ICO = '<svg class="twig-ico" viewBox="0 0 24 24" fill="none"><path d="M5 21 C7 14 10 10 18 5" stroke="var(--twig)" stroke-width="1.8" stroke-linecap="round"/><path d="M11 11 C9 8 10 5 12 4 C14 7 13 10 11 11Z" fill="var(--leaf)"/><path d="M14 8.5 C17 8 19 9.5 19.5 12 C16.5 12.5 14.8 11 14 8.5Z" fill="var(--leaf)" opacity=".7"/></svg>';
 const SMALL_TWIG = '<svg viewBox="0 0 22 30" fill="none"><path d="M4 30 C4 20 8 12 18 6" stroke="var(--twig)" stroke-width="1.4" stroke-linecap="round"/><path d="M11 13 C9 10 10 6 12.5 5 C14 8 13.5 11 11 13Z" fill="var(--leaf)"/></svg>';
 function twigSvg(branches, openId) {
-  // 줄기(x=23)에서 오른쪽 위로 휘어 나가는 얇은 가지들. 많으면 3개까지만 그리고 숫자로 표시.
+  // Thin twigs curving out of the trunk (x=23). Draw at most 3 and show a count.
   const shown = branches.slice(0, 3);
   const parts = shown.map((b, k) => {
     const y0 = 23, y1 = 36 + k * 15, x1 = 54 - k * 4;
@@ -338,7 +390,7 @@ function twigSvg(branches, openId) {
 }
 
 /* ---------- thread ---------- */
-function fmtTime(t) { if (!t) return ''; const d = new Date(t); return isNaN(d) ? '' : d.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+function fmtTime(t) { if (!t) return ''; const d = new Date(t); return isNaN(d) ? '' : d.toLocaleString(LOCALE(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 function branchesOf(i) { return state.branches.filter((b) => b.anchor === i); }
 
 function renderThread(keepScroll) {
@@ -347,17 +399,17 @@ function renderThread(keepScroll) {
   const html = state.items.map((it) => {
     const bs = branchesOf(it.i);
     const hide = q && !it.text.toLowerCase().includes(q) ? ' hidden' : '';
-    const who = it.role === 'user' ? '<b>나</b>' : SPARK + '<b>Claude</b>';
+    const who = it.role === 'user' ? '<b>' + t('you') + '</b>' : SPARK + '<b>Claude</b>';
     return `<div class="row${bs.length ? ' has-branch' : ''}${hide}" data-i="${it.i}">
       <div class="msg ${it.role}" data-i="${it.i}">
         <div class="who">${who}<span>${fmtTime(it.time)}</span></div>
         <div class="bodywrap"><div class="body md">${md(it.text)}</div></div>
-        <button class="act" data-act="${it.i}" title="이 메시지 전체로 가지 치기">${SMALL_TWIG.replace('viewBox="0 0 22 30"', 'viewBox="0 0 22 30" width="13" height="13"')}가지</button>
+        <button class="act" data-act="${it.i}" title="${t('branchMsgTitle')}">${SMALL_TWIG.replace('viewBox="0 0 22 30"', 'viewBox="0 0 22 30" width="13" height="13"')}${t('branchMsg')}</button>
       </div>
       <div class="gutter"><span class="node"></span>${bs.length ? twigSvg(bs, state.open) : ''}</div>
     </div>`;
   }).join('');
-  $('#thread').innerHTML = html || '<div class="empty">표시할 메시지가 없습니다.</div>';
+  $('#thread').innerHTML = html || '<div class="empty">' + t('noMessages') + '</div>';
   markSelections();
   if (keepScroll) wrap.scrollTop = prev;
 }
@@ -387,13 +439,13 @@ async function loadSessions() {
   const { sessions } = await (await api('/api/sessions')).json();
   if (state.session && !sessions.some((s) => s.id === state.session)) sessions.unshift({ id: state.session, title: '' });
   $('#sessionSel').innerHTML = sessions.map((s) => {
-    const d = s.mtime ? new Date(s.mtime).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · ' : '';
+    const d = s.mtime ? new Date(s.mtime).toLocaleString(LOCALE(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · ' : '';
     return `<option value="${s.id}"${s.id === state.session ? ' selected' : ''}>${esc(d + (s.title || s.id.slice(0, 8)))}</option>`;
   }).join('');
 }
 
 async function loadThread(scrollBottom) {
-  if (!state.session) { $('#thread').innerHTML = '<div class="empty">이 폴더에는 Claude Code 세션 기록이 없습니다.</div>'; return; }
+  if (!state.session) { $('#thread').innerHTML = '<div class="empty">' + t('noSessions') + '</div>'; return; }
   const data = await (await api('/api/thread?session=' + encodeURIComponent(state.session))).json();
   state.items = data.items; state.branches = data.branches;
   $('#sessionTitle').textContent = data.title || '';
@@ -406,29 +458,29 @@ async function loadThread(scrollBottom) {
 function anchorQuote(b) {
   const it = state.items[b.anchor];
   const text = b.selection || (it ? it.text : b.anchorPreview || '');
-  const src = (b.anchorRole || (it && it.role)) === 'user' ? '내 질문' : 'Claude 답변';
-  return `<div class="quote" data-goto="${b.anchor}" title="원래 위치로 이동"><svg viewBox="0 0 20 32" fill="none"><path d="M6 32 C6 20 9 12 17 6" stroke="var(--twig)" stroke-width="1.4" stroke-linecap="round"/><path d="M10.5 15 C8.5 12 9.5 8 12 7 C13.5 10 13 13 10.5 15Z" fill="var(--leaf)"/></svg><div class="q">${esc(text.length > 600 ? text.slice(0, 600) + '…' : text)}</div><div class="src">${src}${b.selection ? '의 일부' : ''} · #${b.anchor + 1}</div></div>`;
+  const src = (b.anchorRole || (it && it.role)) === 'user' ? t('yourQuestion') : t('claudeAnswer');
+  return `<div class="quote" data-goto="${b.anchor}" title="${t('gotoSource')}"><svg viewBox="0 0 20 32" fill="none"><path d="M6 32 C6 20 9 12 17 6" stroke="var(--twig)" stroke-width="1.4" stroke-linecap="round"/><path d="M10.5 15 C8.5 12 9.5 8 12 7 C13.5 10 13 13 10.5 15Z" fill="var(--leaf)"/></svg><div class="q">${esc(text.length > 600 ? text.slice(0, 600) + '…' : text)}</div><div class="src">${b.selection ? t('excerpt', src) : t('whole', src)} · #${b.anchor + 1}</div></div>`;
 }
 
 function renderPanel() {
   const panel = $('#panel'), head = $('#panelHead'), body = $('#panelBody'), comp = $('#composer');
   const b = state.draft || state.branches.find((x) => x.id === state.open);
   if (!b) {
-    head.innerHTML = `<h2>${TWIG_ICO}<span>가지 목록</span></h2><button class="icon-btn" id="closePanel" title="닫기">✕</button>`;
+    head.innerHTML = `<h2>${TWIG_ICO}<span>${t('branches')}</span></h2><button class="icon-btn" id="closePanel" title="${t('close')}">✕</button>`;
     comp.classList.add('hidden');
     if (!state.branches.length) {
-      body.innerHTML = `<div class="empty"><svg viewBox="0 0 120 90" fill="none"><path d="M20 88 C24 60 40 40 92 14" stroke="var(--twig)" stroke-width="1.6" stroke-linecap="round"/><path d="M48 46 C42 36 46 26 54 22 C58 32 56 40 48 46Z" fill="var(--leaf)" opacity=".85"/><path d="M66 34 C76 30 86 34 90 42 C80 46 70 42 66 34Z" fill="var(--leaf)" opacity=".6"/><path d="M34 62 C40 56 48 56 52 60" stroke="var(--twig)" stroke-width="1.2" stroke-linecap="round"/></svg>아직 가지가 없습니다.<br>왼쪽 대화에서 <b>문장을 드래그</b>하거나<br>메시지의 <b>가지</b> 버튼을 누르세요.</div>`;
+      body.innerHTML = `<div class="empty"><svg viewBox="0 0 120 90" fill="none"><path d="M20 88 C24 60 40 40 92 14" stroke="var(--twig)" stroke-width="1.6" stroke-linecap="round"/><path d="M48 46 C42 36 46 26 54 22 C58 32 56 40 48 46Z" fill="var(--leaf)" opacity=".85"/><path d="M66 34 C76 30 86 34 90 42 C80 46 70 42 66 34Z" fill="var(--leaf)" opacity=".6"/><path d="M34 62 C40 56 48 56 52 60" stroke="var(--twig)" stroke-width="1.2" stroke-linecap="round"/></svg>${t('emptyBranches')}</div>`;
     } else {
       body.innerHTML = '<ul class="blist">' + [...state.branches].reverse().map((x) => {
         const n = x.messages.filter((m) => m.role === 'user').length;
-        return `<li data-open="${x.id}">${SMALL_TWIG}<div class="t">${esc((x.selection || x.anchorPreview || '').slice(0, 140))}</div><div class="m">#${x.anchor + 1} · 질문 ${n}개 · ${fmtTime(x.createdAt)}</div></li>`;
+        return `<li data-open="${x.id}">${SMALL_TWIG}<div class="t">${esc(plain(x.selection || x.anchorPreview || '').slice(0, 140))}</div><div class="m">#${x.anchor + 1} · ${t('questions', n)} · ${fmtTime(x.createdAt)}</div></li>`;
       }).join('') + '</ul>';
     }
     return;
   }
   panel.classList.remove('closed');
-  const title = b.messages.length ? (b.messages[0].text.split('\n')[0]) : '새 가지';
-  head.innerHTML = `<button class="icon-btn" id="backList" title="가지 목록"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${TWIG_ICO}<span>${esc(title)}</span></h2>${b.id && !state.draft ? '<button class="icon-btn" id="delBranch" title="가지 삭제"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button>' : ''}`;
+  const title = b.messages.length ? (b.messages[0].text.split('\n')[0]) : t('newBranch');
+  head.innerHTML = `<button class="icon-btn" id="backList" title="${t('back')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button><h2>${TWIG_ICO}<span>${esc(title)}</span></h2>${b.id && !state.draft ? '<button class="icon-btn" id="delBranch" title="' + t('deleteBranch') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg></button>' : ''}`;
   let html = anchorQuote(b);
   for (const m of b.messages) {
     if (m.role === 'user') html += `<div class="bmsg user"><div class="b">${esc(m.text)}</div></div>`;
@@ -466,7 +518,7 @@ function gotoMsg(i, instant) {
   el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
 }
 
-/* ---------- 질문 보내기 (NDJSON 스트리밍) ---------- */
+/* ---------- send a question (NDJSON streaming) ---------- */
 async function sendQuestion() {
   const input = $('#input');
   const question = input.value.trim();
@@ -522,7 +574,7 @@ async function sendQuestion() {
   }
 }
 
-/* ---------- 선택 → 가지 치기 버튼 ---------- */
+/* ---------- selection → Branch button ---------- */
 const fb = $('#floatBranch');
 let pendingSel = null;
 document.addEventListener('mouseup', (e) => {
@@ -551,7 +603,7 @@ fb.addEventListener('click', () => {
 });
 $('#threadWrap').addEventListener('scroll', () => { fb.style.display = 'none'; });
 
-/* ---------- 클릭 위임 ---------- */
+/* ---------- click delegation ---------- */
 document.addEventListener('click', async (e) => {
   const t = e.target;
   const twig = t.closest('.twig-hit, mark.twig-mark, [data-open]');
@@ -564,7 +616,7 @@ document.addEventListener('click', async (e) => {
   if (t.closest('#closePanel')) { $('#panel').classList.add('closed'); return; }
   if (t.closest('#delBranch')) {
     const b = state.branches.find((x) => x.id === state.open);
-    if (!b || !confirm('이 가지를 목록에서 지울까요? (Claude 세션 기록 자체는 남습니다)')) return;
+    if (!b || !confirm(t('confirmDelete'))) return;
     await api(`/api/branch/${b.id}?session=${encodeURIComponent(state.session)}`, { method: 'DELETE' });
     state.branches = state.branches.filter((x) => x.id !== b.id); state.open = null;
     renderThread(true); renderPanel(); return;
@@ -574,17 +626,17 @@ document.addEventListener('click', async (e) => {
     if (!b) return;
     try {
       const r = await (await api(`/api/branch/${b.id}/terminal`, { method: 'POST', body: JSON.stringify({ session: state.session }) })).json();
-      if (r.opened) toast('터미널 창을 열었습니다. 도구를 쓸 수 있는 Claude 로 이어집니다.');
+      if (r.opened) toast(t('terminalOpened'));
       else {
-        try { await navigator.clipboard.writeText(r.command); toast('터미널을 열지 못했습니다. 명령을 복사했으니 터미널에 붙여 넣으세요.'); }
-        catch { prompt('터미널에서 실행하세요', r.command); }
+        try { await navigator.clipboard.writeText(r.command); toast(t('terminalCopied')); }
+        catch { prompt(t('terminalPrompt'), r.command); }
       }
     }
     catch (err) { toast(String(err.message || err)); }
   }
 });
 
-/* ---------- 입력 ---------- */
+/* ---------- input ---------- */
 const input = $('#input');
 function autosize() { input.style.height = 'auto'; input.style.height = Math.min(180, input.scrollHeight) + 'px'; }
 input.addEventListener('input', autosize);
@@ -596,7 +648,7 @@ $('#send').addEventListener('click', sendQuestion);
 let searchT = 0;
 $('#search').addEventListener('input', () => { clearTimeout(searchT); searchT = setTimeout(() => renderThread(true), 150); });
 $('#sessionSel').addEventListener('change', (e) => { state.session = e.target.value; state.open = null; state.draft = null; loadThread(true); });
-$('#reload').addEventListener('click', () => loadThread(false).then(() => toast('대화를 다시 읽었습니다.')));
+$('#reload').addEventListener('click', () => loadThread(false).then(() => toast(t('reloaded'))));
 $('#theme').addEventListener('click', () => {
   const root = document.documentElement;
   const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
@@ -607,7 +659,14 @@ try { const th = localStorage.getItem('tangent-theme'); if (th) document.documen
 let toastT = 0;
 function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2600); }
 
-/* ---------- 시작 ---------- */
+$('#lang').addEventListener('click', () => {
+  LANG = LANG === 'ko' ? 'en' : 'ko';
+  try { localStorage.setItem('tangent-lang', LANG); } catch {}
+  applyI18n(); renderThread(true); renderPanel(); loadSessions().catch(() => {});
+});
+
+/* ---------- start ---------- */
+applyI18n();
 (async () => {
   try {
     await loadSessions();
@@ -617,7 +676,7 @@ function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList
     const hb = (location.hash.match(/b=([a-z0-9]+)/) || [])[1];
     const target = hb && state.branches.find((x) => x.id === hb);
     if (target) { openBranch(target.id); gotoMsg(target.anchor, true); }
-  } catch (e) { $('#thread').innerHTML = `<div class="empty">불러오지 못했습니다: ${esc(String(e.message || e))}</div>`; }
+  } catch (e) { $('#thread').innerHTML = `<div class="empty">${t('loadFailed')}${esc(String(e.message || e))}</div>`; }
 })();
 </script>
 </body>

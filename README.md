@@ -18,7 +18,7 @@ Tangent opens your current session in the browser. Highlight any sentence, click
 - **Streaming answers.** Follow-up questions in a branch remember the earlier ones.
 - **Branches are visible.** Branches grow as twigs off the conversation's trunk, and the sentences you branched from stay highlighted. Branches are saved, so they are still there next time.
 - **Continue in the terminal.** Branch chats run without tools. When you need file access or shell commands, one click reopens the same branch as a regular Claude Code session (`claude -r <branch>`).
-- **Also included:** search, a session switcher, and light and dark themes.
+- **Also included:** search, a session switcher, light and dark themes, and an English/Korean UI (follows your browser language).
 
 ## How it differs from built-in commands
 
@@ -81,7 +81,7 @@ Your conversation opens in the browser. Highlight text, click **Branch**, and as
 
 ## Limitations
 
-- **Tangent depends on Claude Code's internal session format.** A Claude Code update could break parsing. All format-specific code is in the "세션 기록 읽기" (session reading) section of `server.mjs`.
+- **Tangent depends on Claude Code's internal session format.** A Claude Code update could break parsing. All format-specific code is in the "session reading" section of `server.mjs`.
 - **macOS support is new.** The browser opens with `open`, and the terminal is Terminal.app through `osascript`. Please open an issue if something misbehaves.
 - **If `claude` was installed through npm on Windows** (`claude.cmd`), it runs through the shell. Set `TANGENT_CLAUDE_BIN` if your binary is somewhere unusual.
 

@@ -1,5 +1,7 @@
-# 가지 기록은 ~/.claude/tangent/data 에 저장되지만, 혹시 레포 안에 생겨도 올리지 않는다 (대화 내용 포함)
+# Branch data lives in ~/.claude/tangent/data; never commit it if it ends up here (it contains conversation text)
 data/
 *.log
 node_modules/
 .DS_Store
+.idea/
+.vscode/
