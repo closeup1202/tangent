@@ -35,11 +35,36 @@ const projDir = path.join(PROJ, CWD.replace(/[^A-Za-z0-9]/g, '-'));
 fs.mkdirSync(path.join(DATA, 'ctx'), { recursive: true });
 
 // ---------------------------------------------------------------- launch
+// One running server per project folder; its address is kept here so a second /tg reuses it
+const runFile = path.join(DATA, `run-${crypto.createHash('sha1').update(CWD).digest('hex').slice(0, 12)}.json`);
+
 if (argv.includes('--launch')) {
+  // The session /tg was typed in (Claude Code passes its id to commands), if it belongs to this folder
+  const envSid = process.env.CLAUDE_CODE_SESSION_ID;
+  const session = opt('--session') || (envSid && /^[0-9a-f-]{8,}$/i.test(envSid) && fs.existsSync(path.join(projDir, envSid + '.jsonl')) ? envSid : '');
+  launch(session);
+} else if (argv.includes('--serve')) {
+  serve();
+} else {
+  console.log('usage: node server.mjs --launch [--cwd dir] [--session id] [--no-open]');
+}
+
+async function launch(session) {
+  // Reuse a live server for this folder instead of starting a second one
+  try {
+    const run = JSON.parse(fs.readFileSync(runFile, 'utf8'));
+    const r = await fetch(`http://127.0.0.1:${run.port}/api/ping`, { method: 'POST', headers: { 'x-tangent-token': run.token }, signal: AbortSignal.timeout(1500) });
+    if (r.ok) {
+      const url = `http://127.0.0.1:${run.port}/?t=${run.token}${session ? '#s=' + session : ''}`;
+      if (!argv.includes('--no-open') && !process.env.TANGENT_NO_OPEN) openUrl(url);
+      console.log(`Opened Tangent${VERSION ? ' v' + VERSION : ''} in your browser: http://127.0.0.1:${run.port}/`);
+      process.exit(0);
+    }
+  } catch {}
   const token = crypto.randomBytes(16).toString('hex');
   const status = path.join(DATA, `launch-${token}.json`);
   const args = [SELF, '--serve', '--cwd', CWD, '--token', token];
-  if (opt('--session')) args.push('--session', opt('--session'));
+  if (session) args.push('--session', session);
   if (argv.includes('--no-open')) args.push('--no-open');
   const child = spawn(process.execPath, args, { detached: true, stdio: 'ignore', windowsHide: true });
   child.unref();
@@ -56,10 +81,6 @@ if (argv.includes('--launch')) {
     setTimeout(wait, 150);
   };
   wait();
-} else if (argv.includes('--serve')) {
-  serve();
-} else {
-  console.log('usage: node server.mjs --launch [--cwd dir] [--session id] [--no-open]');
 }
 
 // ---------------------------------------------------------------- platform helpers
@@ -376,8 +397,29 @@ function saveImages(bid, msgIndex, images) {
   });
 }
 
-function loadStore(sid) { try { return JSON.parse(fs.readFileSync(storeFile(sid), 'utf8')); } catch { return { branches: [] }; } }
-function saveStore(sid, s) { const f = storeFile(sid); fs.writeFileSync(f + '.tmp', JSON.stringify(s, null, 1)); fs.renameSync(f + '.tmp', f); }
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const TRANSIENT = new Set(['EBUSY', 'EPERM', 'EACCES', 'EAGAIN']);
+// Retry briefly when Windows (antivirus, indexer, another reader) holds the file for a moment
+function withRetry(fn) {
+  for (let k = 0; ; k++) {
+    try { return fn(); } catch (e) { if (!TRANSIENT.has(e.code) || k >= 5) throw e; pause(40 * (k + 1)); }
+  }
+}
+// A missing file is an empty store. Any other failure must not be mistaken for "no branches",
+// or the next save would wipe the real ones. A corrupt file is kept aside and the request fails.
+function loadStore(sid) {
+  const f = storeFile(sid);
+  let text;
+  try { text = withRetry(() => fs.readFileSync(f, 'utf8')); }
+  catch (e) { if (e.code === 'ENOENT') return { branches: [] }; throw new Error('Could not read branch data (' + e.code + '). Nothing was changed.'); }
+  try { const o = JSON.parse(text); if (!Array.isArray(o.branches)) throw new Error('bad shape'); return o; }
+  catch {
+    const bad = `${f}.corrupt-${Date.now()}`;
+    try { fs.copyFileSync(f, bad); } catch {}
+    throw new Error('Branch data file is damaged; a copy was kept at ' + bad + '. Nothing was changed.');
+  }
+}
+function saveStore(sid, s) { const f = storeFile(sid); fs.writeFileSync(f + '.tmp', JSON.stringify(s, null, 1)); withRetry(() => fs.renameSync(f + '.tmp', f)); }
 
 // ---------------------------------------------------------------- running claude
 let active = 0;
@@ -618,7 +660,7 @@ function serve() {
         const file = path.join(imgDir(im[1]), im[2]);
         if (!fs.existsSync(file)) return send(res, 404, 'not found');
         res.writeHead(200, { 'content-type': IMG_EXT_TYPE[im[3]], 'cache-control': 'private, max-age=86400' });
-        return fs.createReadStream(file).pipe(res);
+        return fs.createReadStream(file).on('error', () => { if (!res.headersSent) send(res, 404, 'not found'); else res.destroy(); }).pipe(res);
       }
       if (!u.pathname.startsWith('/api/')) return send(res, 404, 'not found');
       if (req.headers['x-tangent-token'] !== TOKEN) return send(res, 403, 'token');
@@ -757,9 +799,9 @@ function serve() {
             if (o.type !== 'session') return send_(o);
             // Record the branch's own session id as soon as it is known, so /tg and the session
             // list never mistake a branch that is still answering for a main conversation
-            const s = loadStore(sid);
+            let s; try { s = loadStore(sid); } catch { return; }
             const x = s.branches.find((y) => y.id === b.id);
-            if (x && !x.sessionId) { x.sessionId = o.id; saveStore(sid, s); }
+            if (x && !x.sessionId) { x.sessionId = o.id; try { saveStore(sid, s); } catch {} } // the final save records it anyway
           };
           send_({ type: 'branch', branch: b });
           // Session name shown in /resume. It may pass through a shell, so strip risky characters
@@ -793,10 +835,14 @@ function serve() {
   });
 
   server.on('error', (e) => { fs.writeFileSync(statusFile, JSON.stringify({ error: String(e.message || e) })); process.exit(1); });
+  const dropRunFile = () => { try { const r = JSON.parse(fs.readFileSync(runFile, 'utf8')); if (r.pid === process.pid) fs.rmSync(runFile, { force: true }); } catch {} };
+  process.on('exit', dropRunFile);
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => process.exit(0));
   server.listen(0, '127.0.0.1', () => {
     port = server.address().port;
     if (!argv.includes('--no-open') && !process.env.TANGENT_NO_OPEN) openUrl(`http://127.0.0.1:${port}/?t=${TOKEN}`);
     fs.writeFileSync(statusFile, JSON.stringify({ url: `http://127.0.0.1:${port}/`, port }));
+    try { fs.writeFileSync(runFile, JSON.stringify({ port, token: TOKEN, pid: process.pid, cwd: CWD })); } catch {}
   });
   setInterval(() => { if (active === 0 && Date.now() - lastSeen > IDLE_MS) process.exit(0); }, 30000);
 }

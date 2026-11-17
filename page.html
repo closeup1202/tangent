@@ -1248,11 +1248,14 @@ if (BOOT && BOOT.version) $('#ver').textContent = 'v' + BOOT.version;
 loadModels();
 (async () => {
   try {
+    // #s=<session> picks the session (used when /tg reuses an already running server)
+    const hs = (location.hash.match(/(?:^#|&)s=([0-9a-f-]{8,})/i) || [])[1];
+    if (hs) state.session = hs;
     await loadSessions();
     await loadThread(true);
     $('#panel').classList.remove('closed');
     renderPanel();
-    const hb = (location.hash.match(/b=([a-z0-9]+)/) || [])[1];
+    const hb = (location.hash.match(/(?:^#|&)b=([a-z0-9]+)/) || [])[1];
     const target = hb && state.branches.find((x) => x.id === hb);
     if (target) { openBranch(target.id); gotoMsg(target.anchor, true); }
   } catch (e) { $('#thread').innerHTML = `<div class="empty">${t('loadFailed')}${esc(String(e.message || e))}</div>`; }
