@@ -117,6 +117,8 @@ npm test
 
 테스트는 가짜 `claude`(`test/support/fake-claude.mjs`)와 임시 폴더로 실제 Tangent 서버를 띄워서 확인합니다. 네트워크를 쓰지 않고 Claude 사용량도 들지 않습니다. CI가 Linux, macOS, Windows에서 돌립니다. 변경 내역은 [CHANGELOG.md](CHANGELOG.md)에 있습니다.
 
+기여를 환영합니다. 체크아웃한 코드로 실행하는 방법, 코드 구조, 지켜야 할 점은 [CONTRIBUTING.md](CONTRIBUTING.md)에 있습니다(영어). 보안 문제는 [SECURITY.md](SECURITY.md)에 따라 비공개로 알려 주세요.
+
 ## 보안
 
 - 서버는 `127.0.0.1`에만 열리고, 실행할 때마다 임의 토큰을 씁니다. Host와 Origin 헤더도 검사합니다. 프로젝트 폴더마다 서버는 하나만 뜹니다.

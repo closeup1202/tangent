@@ -1,0 +1,58 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please **don't paste session contents** that may include private code or data.
+        Security problems: see SECURITY.md instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Run /tg in ...\n2. Select ...\n3. ..."
+    validations:
+      required: true
+  - type: input
+    id: tangent
+    attributes:
+      label: Tangent version (shown next to the logo in the header)
+      placeholder: v0.2.1
+    validations:
+      required: true
+  - type: input
+    id: claude
+    attributes:
+      label: Output of `claude --version`
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options: [macOS, Windows, Linux]
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install Tangent?
+      options: [Plugin (/plugin install), Manual (node install.mjs), --plugin-dir from a checkout]
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal / multiplexer (if relevant)
+      placeholder: e.g. Ghostty, iTerm2, Windows Terminal, tmux, herdr
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else (browser console errors, screenshots)

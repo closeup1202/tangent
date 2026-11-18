@@ -117,6 +117,8 @@ npm test
 
 The tests start real Tangent servers against a fake `claude` (`test/support/fake-claude.mjs`) and temporary folders, so they need no network and use no Claude quota. CI runs them on Linux, macOS and Windows. See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
+Contributions are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) explains how to run Tangent from a checkout, where things are in the code, and what to keep in mind. Report security problems privately: [SECURITY.md](SECURITY.md).
+
 ## Security
 
 - The server listens only on `127.0.0.1`. It uses a random token per launch and checks the `Host` and `Origin` headers. One server runs per project folder.

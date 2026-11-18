@@ -2,6 +2,10 @@
 
 All notable changes to Tangent. Versions follow `.claude-plugin/plugin.json`.
 
+## Unreleased
+### Added
+- Contributor docs: CONTRIBUTING.md, SECURITY.md, issue and pull request templates.
+
 ## 0.2.1 — 2026-11-18
 ### Fixed
 - Projects opened through a symlinked folder (for example macOS `/var` → `/private/var`, or `~/code` pointing to another disk) now find their sessions. The real path and the linked path are both tried, and the one with sessions wins. CI on macOS caught this.
