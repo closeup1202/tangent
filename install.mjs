@@ -1,4 +1,5 @@
-// Tangent installer: registers the /tg slash command in Claude Code. Works on Windows, macOS and Linux.
+// Tangent installer: registers /tg as a personal skill in Claude Code (~/.claude/skills/tg). Skills show up
+// in the terminal, the desktop app and IDEs. Works on Windows, macOS and Linux.
 //
 //   node install.mjs               install (safe to rerun; rerun after moving the repo)
 //   node install.mjs --uninstall   remove the /tg command and launcher (keeps branch data)
@@ -23,19 +24,22 @@ const base = path.join(home, '.claude', 'tangent');
 const data = path.join(base, 'data');
 const shim = path.join(base, 'launch.mjs');
 const cmdDir = path.join(home, '.claude', 'commands');
-const cmdFile = path.join(cmdDir, 'tg.md');
+const oldCmdFile = path.join(cmdDir, 'tg.md'); // versions up to 0.2.1 installed a command here
+const skillDir = path.join(home, '.claude', 'skills', 'tg');
+const skillFile = path.join(skillDir, 'SKILL.md');
 const args = process.argv.slice(2);
 
 if (args.includes('--uninstall')) {
   fs.rmSync(shim, { force: true });
-  if (fs.existsSync(cmdFile) && isOurs(cmdFile)) fs.rmSync(cmdFile);
+  if (fs.existsSync(skillFile) && isOurs(skillFile)) fs.rmSync(skillDir, { recursive: true, force: true });
+  if (fs.existsSync(oldCmdFile) && isOurs(oldCmdFile)) fs.rmSync(oldCmdFile);
   if (args.includes('--purge')) fs.rmSync(base, { recursive: true, force: true });
   console.log('Uninstalled.' + (args.includes('--purge') ? '' : ` Branch data is kept in ${data}`));
   process.exit(0);
 }
 
 fs.mkdirSync(path.join(data, 'ctx'), { recursive: true });
-fs.mkdirSync(cmdDir, { recursive: true });
+fs.mkdirSync(skillDir, { recursive: true });
 
 // 1. Launcher. The /tg command calls this space-free path even if the repo path has spaces or non-ASCII characters.
 const serverUrl = pathToFileURL(path.join(repo, 'server.mjs')).href;
@@ -57,16 +61,22 @@ const oldCmd = path.join(cmdDir, 'cq.md');
 if (fs.existsSync(oldCmd) && fs.readFileSync(oldCmd, 'utf8').includes('cq-web')) fs.rmSync(oldCmd);
 fs.rmSync(path.join(home, '.claude', 'cq-web', 'launch.mjs'), { force: true });
 
-// 3. The /tg command. Back up any unrelated /tg command first.
-if (fs.existsSync(cmdFile) && !isOurs(cmdFile)) {
-  fs.copyFileSync(cmdFile, cmdFile + '.bak');
-  console.log(`Backed up the existing ${cmdFile} to .bak`);
+// 3. The /tg skill. Remove the command an older version installed (same name), and back up an
+// unrelated tg skill first.
+if (fs.existsSync(oldCmdFile) && isOurs(oldCmdFile)) fs.rmSync(oldCmdFile);
+if (fs.existsSync(skillFile) && !isOurs(skillFile)) {
+  fs.copyFileSync(skillFile, skillFile + '.bak');
+  console.log(`Backed up the existing ${skillFile} to .bak`);
 }
 const p = shim.split(path.sep).join('/');
 const q = /\s/.test(p) ? `"${p}"` : p;
-fs.writeFileSync(cmdFile, `---
+fs.writeFileSync(skillFile, `---
+name: tg
 description: Open this conversation in the browser and branch side-chats off selected text (tangent)
-allowed-tools: Bash(node ${q} --launch:*)
+disable-model-invocation: true
+allowed-tools:
+  - Bash(node ${q} --launch:*)
+  - PowerShell(node ${q} --launch:*)
 ---
 ${MARK}
 
@@ -76,7 +86,7 @@ Above is the output of the tangent launcher. If it succeeded, reply with one sho
 `);
 
 console.log(`Installed.
-  command:     ${cmdFile}
+  skill:       ${skillFile}
   launcher:    ${shim}
   branch data: ${data}${moved ? `  (migrated ${moved} old files)` : ''}
 Restart Claude Code, then type /tg in any session.`);

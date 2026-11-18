@@ -1,6 +1,10 @@
 ---
+name: tg
 description: Open this conversation in the browser and branch side-chats off selected text (Tangent)
-allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/server.mjs" --launch:*)
+disable-model-invocation: true
+allowed-tools:
+  - Bash(node "${CLAUDE_PLUGIN_ROOT}/server.mjs" --launch:*)
+  - PowerShell(node "${CLAUDE_PLUGIN_ROOT}/server.mjs" --launch:*)
 ---
 
 !`node "${CLAUDE_PLUGIN_ROOT}/server.mjs" --launch`

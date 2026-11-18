@@ -72,7 +72,9 @@ Claude Code 대화에서 문장을 골라 옆 패널에서 곁가지 질문을 �
 
 **셸에서:** `claude plugin install tangent --marketplace closeup1202/tangent`
 
-**명령 이름:** 명령은 `/tg`입니다. 같은 이름의 명령이 이미 있으면 `/tangent:tg`가 됩니다.
+**명령 이름:** `/tg`는 스킬이라서 터미널, 데스크톱 앱(로컬 세션), IDE 어디서나 보입니다. 같은 이름의 명령이 이미 있으면 `/tangent:tg`가 됩니다.
+
+**Claude 데스크톱 앱:** 터미널에서 위 명령으로 user 범위에 설치하면 데스크톱 로컬 세션에서도 쓸 수 있습니다. 데스크톱의 플러그인 검색은 공식 디렉터리만 찾으며, 거기 나오는 "Tangent Jar"는 다른 프로젝트입니다.
 
 **직접 설치(플러그인 없이):**
 
@@ -82,7 +84,7 @@ cd tangent
 node install.mjs
 ```
 
-`~/.claude/commands/tg.md`에 `/tg` 명령을 만들고(승인 없이 실행되도록 허용), `~/.claude/tangent/launch.mjs`에 실행 진입점을 만듭니다. 설치 후 Claude Code를 다시 시작하세요. 레포를 옮겼다면 `node install.mjs`를 다시 실행합니다.
+`~/.claude/skills/tg/SKILL.md`에 `/tg` 스킬을 만들고(승인 없이 실행되도록 허용), `~/.claude/tangent/launch.mjs`에 실행 진입점을 만듭니다. 설치 후 Claude Code를 다시 시작하세요. 레포를 옮겼다면 `node install.mjs`를 다시 실행합니다.
 
 ## 설정
 
@@ -103,7 +105,7 @@ node install.mjs
 | `server.mjs` | 로컬 서버. 세션 기록을 읽고, `claude -p`로 가지 대화를 실행합니다. 외부 패키지를 쓰지 않습니다. |
 | `page.html` | 브라우저 화면(마크다운 렌더러 포함, 외부 CDN 없음) |
 | `install.mjs` | 직접 설치할 때 `/tg` 명령 설치·제거 |
-| `commands/tg.md`, `.claude-plugin/` | 플러그인 포장: `/tg` 명령, 매니페스트, 마켓플레이스 파일 |
+| `skills/tg/SKILL.md`, `.claude-plugin/` | 플러그인 포장: `/tg` 스킬, 매니페스트, 마켓플레이스 파일 |
 
 - **원래 대화:** `~/.claude/projects/<작업 폴더>/<세션>.jsonl`을 읽기만 하고 고치지 않습니다. 처음 한 번 읽은 뒤에는 새로 붙은 부분만 읽어서, 긴 대화에서도 실시간 갱신이 빠릅니다.
 - **가지 대화:** `claude -p --tools "" --strict-mcp-config`로 실행합니다(**파일 읽기**를 켜면 `--tools Read,Grep,Glob`). 첫 질문에는 `--append-system-prompt-file`로 맥락을 넣고, 이어지는 질문은 `--resume`으로 보냅니다. 가지 대화도 Claude Code 세션으로 저장되므로 구독 사용량을 씁니다.

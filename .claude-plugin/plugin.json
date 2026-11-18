@@ -1,6 +1,6 @@
 {
   "name": "tangent",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Branch side-chats off any sentence of your Claude Code session, in a local browser view.",
   "author": { "name": "closeup1202" },
   "homepage": "https://github.com/closeup1202/tangent",

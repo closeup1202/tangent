@@ -37,7 +37,7 @@ There are no dependencies and no build step. Each file is organised in sections 
 | `server.mjs` | launch, platform helpers (browser/terminal/claude binary), **session reading**, branch store, images, running claude, study notes, HTTP routes |
 | `page.html` | styles, i18n strings (`I18N`), Markdown renderer, thread and live refresh, branch panel, sending questions (NDJSON stream), selection → Branch, keyboard, images, model picker, summary and note windows |
 | `install.mjs` | manual install of `/tg` (not used by the plugin) |
-| `commands/tg.md`, `.claude-plugin/` | plugin packaging |
+| `skills/tg/SKILL.md`, `.claude-plugin/` | plugin packaging (`/tg` is a skill so it also appears in the desktop app) |
 | `test/` | tests; `test/support/fake-claude.mjs` stands in for the `claude` CLI |
 
 ## Things to keep in mind

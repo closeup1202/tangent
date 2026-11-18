@@ -11,15 +11,17 @@ function home(t) {
   const h = fs.mkdtempSync(path.join(os.tmpdir(), 'tangent-home-'));
   t.after(() => fs.rmSync(h, { recursive: true, force: true }));
   const run = (...args) => execFileSync(process.execPath, [path.join(REPO, 'install.mjs'), ...args], { env: { ...process.env, HOME: h, USERPROFILE: h } }).toString();
-  return { h, run, cmd: path.join(h, '.claude', 'commands', 'tg.md'), shim: path.join(h, '.claude', 'tangent', 'launch.mjs') };
+  return { h, run, cmd: path.join(h, '.claude', 'skills', 'tg', 'SKILL.md'), oldCmd: path.join(h, '.claude', 'commands', 'tg.md'), shim: path.join(h, '.claude', 'tangent', 'launch.mjs') };
 }
 
-test('install writes the command and launcher; uninstall removes them', (t) => {
+test('install writes the /tg skill and launcher; uninstall removes them', (t) => {
   const { run, cmd, shim } = home(t);
   run();
   const text = fs.readFileSync(cmd, 'utf8');
   assert.match(text, /tangent:generated-command/);
-  assert.match(text, /allowed-tools: Bash\(node .*launch\.mjs --launch:\*\)/);
+  assert.match(text, /name: tg/);
+  assert.match(text, /disable-model-invocation: true/);
+  assert.match(text, /- Bash\(node .*launch\.mjs --launch:\*\)/);
   assert.match(fs.readFileSync(shim, 'utf8'), /server\.mjs/);
   run(); // running it again is fine
   run('--uninstall');
@@ -27,7 +29,7 @@ test('install writes the command and launcher; uninstall removes them', (t) => {
   assert.equal(fs.existsSync(shim), false);
 });
 
-test('an unrelated tg.md is backed up on install and left alone on uninstall', (t) => {
+test('an unrelated tg skill is backed up on install and left alone on uninstall', (t) => {
   const { run, cmd } = home(t);
   fs.mkdirSync(path.dirname(cmd), { recursive: true });
   fs.writeFileSync(cmd, 'my own /tg command, mentions tangent but is not Tangent\n');
@@ -36,4 +38,13 @@ test('an unrelated tg.md is backed up on install and left alone on uninstall', (
   fs.writeFileSync(cmd, 'my own again\n');
   run('--uninstall');
   assert.equal(fs.readFileSync(cmd, 'utf8'), 'my own again\n');
+});
+
+test('the /tg command written by older versions is replaced by the skill', (t) => {
+  const { run, cmd, oldCmd } = home(t);
+  fs.mkdirSync(path.dirname(oldCmd), { recursive: true });
+  fs.writeFileSync(oldCmd, '---\ndescription: Open this conversation in the browser and branch side-chats off selected text (tangent)\n---\n<!-- tangent:generated-command -->\n');
+  run();
+  assert.equal(fs.existsSync(oldCmd), false);
+  assert.ok(fs.existsSync(cmd));
 });

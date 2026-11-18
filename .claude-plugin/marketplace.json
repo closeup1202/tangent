@@ -1,6 +1,9 @@
 {
   "name": "tangent",
-  "owner": { "name": "closeup1202" },
+  "description": "Tangent: branch side-chats off any sentence of your Claude Code session.",
+  "owner": {
+    "name": "closeup1202"
+  },
   "plugins": [
     {
       "name": "tangent",

@@ -72,7 +72,9 @@ That's it. The answer streams in the side panel, and your main session is untouc
 
 **From a shell:** `claude plugin install tangent --marketplace closeup1202/tangent`
 
-**Command name:** the command is `/tg`. If another plugin already uses that name, it is `/tangent:tg`.
+**Command name:** `/tg` is a skill, so it shows up in the terminal, the desktop app (local sessions) and IDEs. If another command already uses that name, it is `/tangent:tg`.
+
+**Claude desktop app:** install the plugin at user scope from a terminal (command above); desktop local sessions use the same plugins. The desktop plugin search only covers the official directory, where "Tangent Jar" is a different project.
 
 **Manually,** without the plugin system:
 
@@ -82,7 +84,7 @@ cd tangent
 node install.mjs
 ```
 
-This writes `/tg` to `~/.claude/commands/tg.md` (pre-allowed, so it runs without a permission prompt) and a launcher to `~/.claude/tangent/launch.mjs`. Restart Claude Code afterwards. If you move the repo, run `node install.mjs` again.
+This writes the `/tg` skill to `~/.claude/skills/tg/SKILL.md` (pre-allowed, so it runs without a permission prompt) and a launcher to `~/.claude/tangent/launch.mjs`. Restart Claude Code afterwards. If you move the repo, run `node install.mjs` again.
 
 ## Configuration
 
@@ -103,7 +105,7 @@ All settings are optional environment variables.
 | `server.mjs` | Local server. Reads the session log and runs branch chats through `claude -p`. No dependencies. |
 | `page.html` | The UI. Includes a small built-in Markdown renderer; no CDN. |
 | `install.mjs` | Manual install and uninstall of the slash command. |
-| `commands/tg.md`, `.claude-plugin/` | Plugin packaging: the `/tg` command, manifest and marketplace file. |
+| `skills/tg/SKILL.md`, `.claude-plugin/` | Plugin packaging: the `/tg` skill, manifest and marketplace file. |
 
 - **Your session is read-only.** Tangent reads `~/.claude/projects/<project>/<session>.jsonl` and never writes to it. After the first read it only reads what was appended, so live refresh stays fast on long sessions.
 - **Branches are ordinary Claude Code sessions.** They run with `claude -p --tools "" --strict-mcp-config`, or with `--tools Read,Grep,Glob` when **Read files** is on. The first message gets the picked context through `--append-system-prompt-file`, and follow-ups use `--resume`. Branches count toward your normal Claude usage.

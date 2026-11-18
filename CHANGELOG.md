@@ -2,7 +2,11 @@
 
 All notable changes to Tangent. Versions follow `.claude-plugin/plugin.json`.
 
-## Unreleased
+## 0.2.2 — 2026-11-18
+### Changed
+- `/tg` is now a skill (`skills/tg/SKILL.md`) instead of an old-style command, so it also appears in the Claude desktop app's `/` menu, which lists skills. The manual installer writes `~/.claude/skills/tg/SKILL.md` and removes the command earlier versions installed.
+- `/tg` is user-invoked only (`disable-model-invocation`); a PowerShell permission rule was added for Windows without Git Bash.
+
 ### Added
 - Contributor docs: CONTRIBUTING.md, SECURITY.md, issue and pull request templates.
 
