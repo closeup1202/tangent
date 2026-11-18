@@ -130,7 +130,7 @@ Contributions are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) explains how to ru
 ## Limitations
 
 - **Tangent depends on Claude Code's internal session format.** A Claude Code update could break parsing; Tangent then shows a warning instead of an empty page. All format-specific code is in the "session reading" section of `server.mjs`, and the tests describe the format it expects.
-- **Tested on Windows and macOS.** On Linux the browser part works. If no terminal can be opened, the command is copied for you instead.
+- **Tested on Windows and macOS,** in the terminal and in the Claude desktop app (local sessions). On Linux the browser part works. If no terminal can be opened, the command is copied for you instead.
 - **If `claude` was installed through npm on Windows** (`claude.cmd`), it runs through the shell.
 
 ## Uninstall
