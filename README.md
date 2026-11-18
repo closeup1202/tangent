@@ -56,7 +56,11 @@ That's it. The answer streams in the side panel, and your main session is untouc
 - **Continue in terminal** reopens a branch as a full Claude Code session. herdr, tmux, WezTerm, Windows Terminal, Ghostty and iTerm2 are detected.
 - Keyboard shortcuts (`B`, `/`, `Esc`), light/dark theme, English/Korean UI.
 
-## How it differs from built-in commands
+## How it differs from built-in features
+
+**Claude desktop app:** it has a built-in side chat (select text → *Start side chat*), which covers the core idea in a quoted side panel that is kept across restarts. If you work in the desktop app, try that first. Tangent is mainly for **Claude Code in the terminal**, which has no such feature, and it adds what the side chat doesn't: twigs on the conversation showing where each branch grew, branches inside branches, study notes saved as Markdown, and summaries to bring back. It also runs in the desktop app's browser pane if you want those there.
+
+**In the terminal:**
 
 | | `/btw` | `/branch` | Tangent |
 |---|---|---|---|
@@ -74,7 +78,7 @@ That's it. The answer streams in the side panel, and your main session is untouc
 
 **Command name:** `/tg` is a skill, so it shows up in the terminal, the desktop app (local sessions) and IDEs. If another command already uses that name, it is `/tangent:tg`.
 
-**Claude desktop app:** install the plugin at user scope from a terminal (command above); desktop local sessions use the same plugins. The desktop plugin search only covers the official directory, where "Tangent Jar" is a different project.
+**Claude desktop app:** install the plugin at user scope from a terminal (command above); desktop local sessions use the same plugins. `/tg` opens fine in the desktop app's browser pane (`Ctrl+Shift+B`). The desktop plugin search only covers the official directory, where "Tangent Jar" is a different project.
 
 **Manually,** without the plugin system:
 
